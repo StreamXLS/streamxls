@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Commercial inquiries (source license, OEM, partnership)
+    url: https://github.com/StreamXLS/streamxls/discussions/categories/commercial-inquiries
+    about: Open a Discussion under "Commercial inquiries" rather than an Issue.
+  - name: Documentation discussion
+    url: https://github.com/StreamXLS/streamxls/discussions
+    about: Open a Discussion for general questions about the docs / FAQ.

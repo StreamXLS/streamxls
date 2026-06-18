@@ -1,0 +1,26 @@
+# Binary assets: disable end-of-line conversion and text diffing so Git
+# never rewrites their contents (CRLF<->LF) or attempts to merge/diff them.
+# The `binary` macro expands to `-text -diff`.
+
+# Excel / Office workbooks (ZIP-container formats)
+*.xlsm binary
+*.xlsx binary
+*.xlsb binary
+*.xls  binary
+*.docx binary
+
+# Documents and images
+*.pdf  binary
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.ico  binary
+
+# Release / archive / native artifacts
+*.zip  binary
+*.gz   binary
+*.7z   binary
+*.dll  binary
+*.xll  binary
+*.exe  binary

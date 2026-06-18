@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  docs-lint:
+    name: Docs lint (markdown + links)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: markdownlint
+        uses: DavidAnson/markdownlint-cli2-action@v18
+        with:
+          globs: |
+            **/*.md
+            !releases/**
+            !screenshots/**
+
+      - name: Link check
+        uses: lycheeverse/lychee-action@v1
+        with:
+          args: >-
+            --no-progress --exclude-mail
+            --accept 200,201,202,203,204,206,429
+            --exclude '.*interactivebrokers\.com.*'
+            --exclude '.*ibkrcampus\.com.*'
+            './**/*.md'
+          fail: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  schema-stub:
+    name: Topic schema validation (placeholder)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Placeholder — wired up alongside first Releases drop
+        run: |
+          echo "Topic-string schema validation will run here once the schema doc lands."
+          echo "Gated on the first Releases drop (code-signing onboarding milestone)."

@@ -1,0 +1,38 @@
+name: Release (signed binary)
+
+# This workflow publishes signed-binary releases for StreamXLS.
+#
+# Status: placeholder. The real workflow is gated on completion of code-signing
+# certificate onboarding. The trigger and structure are scaffolded here so that when
+# the cert lands, the release pipeline is one configuration step away from live.
+#
+# When live, this workflow will:
+#   1. Pull the prebuilt MSI artifact from the private source repository's
+#      release pipeline (the source build runs there).
+#   2. Submit the MSI for code signing.
+#   3. Verify the signature locally.
+#   4. Attach the signed MSI to the GitHub Release for this tag.
+#   5. Publish the SHA-256 hash in the release notes.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g. 1.0.0)'
+        required: true
+        type: string
+
+jobs:
+  release:
+    name: Sign + publish release
+    runs-on: windows-latest
+    # Disabled until Trusted Signing onboarding completes.
+    if: false
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Placeholder
+        run: |
+          echo "Trusted Signing not yet provisioned."
+          echo "Pending code-signing onboarding; placeholder until signed releases are available."

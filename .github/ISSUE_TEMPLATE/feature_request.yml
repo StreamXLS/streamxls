@@ -1,0 +1,36 @@
+name: Feature request
+description: Suggest a new capability or improvement for StreamXLS.
+title: "[Feature] "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+      description: Describe the use case. What are you trying to do that the current product doesn't support cleanly?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: A concrete description of what you'd like to see. New `=RTD()` topic family? New filter on an existing one? Configuration knob?
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Other approaches you've thought about (workarounds, third-party tools, etc.).
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional context
+      description: Links, references, anything else useful.
+    validations:
+      required: false

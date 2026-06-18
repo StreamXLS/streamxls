@@ -1,0 +1,34 @@
+# OS / editor
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+.DS_Store
+*.swp
+*~
+.idea/
+.vscode/
+
+# Excel temp / lock files
+~$*.xls
+~$*.xlsm
+~$*.xlsx
+
+# Build / binary artifacts (the binary product is closed-source;
+# nothing should appear under git from a binary build here)
+bin/
+obj/
+*.dll
+*.pdb
+*.exe
+*.msi
+*.cab
+
+# Local secrets / config (defensive — no secrets should live here at all)
+*.local
+*.env
+.env*
+secrets/
+
+# Logs
+*.log
+logs/

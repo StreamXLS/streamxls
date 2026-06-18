@@ -1,0 +1,86 @@
+name: Bug report
+description: Report a defect in StreamXLS (the binary product) or in this repository's documentation.
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a bug report. Please fill in the fields below.
+
+        For commercial inquiries (source license, OEM, partnership), please use Discussions, not Issues.
+
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Which surface is the bug in?
+      options:
+        - StreamXLS binary product (a `=RTD(...)` call returns wrong data, crashes, leaks, etc.)
+        - Documentation in this repository (README, FAQ, docs/)
+        - Example workbook in `examples/`
+        - CI / GitHub repo plumbing
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: A clear description of the unexpected behaviour.
+      placeholder: When I do X, I see Y, but expected Z.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction steps
+      description: |
+        For binary-product bugs, please include the exact `=RTD(...)` formula(s), the contract / account context, and any TWS configuration relevant to the failure.
+      placeholder: |
+        1. ...
+        2. ...
+        3. ...
+    validations:
+      required: false
+
+  - type: input
+    id: tws-version
+    attributes:
+      label: TWS / IB Gateway version
+      placeholder: e.g. TWS 10.30.1q
+    validations:
+      required: false
+
+  - type: input
+    id: excel-version
+    attributes:
+      label: Excel version
+      placeholder: e.g. Microsoft 365 Desktop 16.0.18025
+    validations:
+      required: false
+
+  - type: input
+    id: windows-version
+    attributes:
+      label: Windows version
+      placeholder: e.g. Windows 11 24H2
+    validations:
+      required: false
+
+  - type: input
+    id: twsrtdserver-version
+    attributes:
+      label: StreamXLS version
+      description: As shown on the Status tab of an example workbook, or in installed-programs.
+      placeholder: e.g. 1.0.0
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional context
+      description: Logs, screenshots, anything else that helps.
+    validations:
+      required: false

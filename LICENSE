@@ -1,0 +1,21 @@
+Copyright (c) 2026 StreamXLS LLC. All rights reserved.
+
+This repository is the public documentation and user site for StreamXLS, a
+commercial, closed-source product. It does not contain the product's source code.
+
+All contents of this repository — including the documentation, FAQ, design and
+architecture notes, examples, screenshots, text, images, GitHub templates, and
+configuration files (collectively, the "Content") — are the copyrighted property
+of StreamXLS LLC. No license is granted to copy, modify, redistribute, or create
+derivative works from the Content, except for brief quotation with attribution as
+permitted by applicable fair-use law, or with the prior written permission of
+StreamXLS LLC.
+
+The StreamXLS software product — the COM server binary and its installer — is not
+open source and is not licensed by this repository. It is distributed under a
+separate End-User License Agreement that accompanies the installer. Commercial
+source-license, OEM, and integration inquiries: see docs/licensing.md.
+
+THE CONTENT IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED.
+IN NO EVENT SHALL STREAMXLS LLC BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER
+LIABILITY ARISING FROM OR IN CONNECTION WITH THE CONTENT OR ITS USE.
