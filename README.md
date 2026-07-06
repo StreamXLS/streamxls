@@ -10,7 +10,7 @@ Market data, account values, positions with live P&L, order monitoring, and orde
 =RTD("Tws.Rtd", , "positions", "*", "SymbolsCsv")
 ```
 
-Watch the 72-second demo on [YouTube](https://youtu.be/Jq7d6iHN2R0) or [Vimeo](https://vimeo.com/1191256765).
+Watch the [72-second demo](https://vimeo.com/1191256765).
 
 ## Documentation
 
