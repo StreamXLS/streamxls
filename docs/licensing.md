@@ -4,7 +4,7 @@ This document explains what is licensed how in this repository, and how commerci
 
 ## Repository content
 
-All contents of this repository — documentation (`README.md`, files under `docs/`), Excel workbook examples under `examples/`, screenshots under `screenshots/`, and GitHub-side templates and CI configuration under `.github/` — are the copyrighted property of StreamXLS LLC. **All rights reserved.** See the root [LICENSE](../LICENSE). You may quote briefly with attribution as permitted by applicable fair-use law; any other reuse requires prior written permission.
+All contents of this repository — documentation (`README.md`, files under `docs/`), Excel workbook examples under `examples/`, and GitHub-side templates and CI configuration under `.github/` — are the copyrighted property of StreamXLS LLC. **All rights reserved.** See the root [LICENSE](../LICENSE). You may quote briefly with attribution as permitted by applicable fair-use law; any other reuse requires prior written permission.
 
 ## The product
 
@@ -18,4 +18,4 @@ Three categories of inquiry are welcome via [GitHub Discussions](https://github.
 2. **OEM / white-label redistribution** — for vendors that want to embed StreamXLS into another commercial product (advisor-platform Excel front-ends, etc.).
 3. **Integration partnership** — joint work with IBKR or third-party platforms.
 
-End-user binary licensing terms (single-user, single-firm, per-seat) will publish alongside the first signed Releases drop.
+End-user binary licensing is a subscription; current pricing and terms are on the [pricing page](https://streamxls.com/buy), and the product ships under the End-User License Agreement at [streamxls.com/eula](https://streamxls.com/eula). A 30-day, full-featured trial is keyless — it starts automatically the first time StreamXLS is used in Excel.

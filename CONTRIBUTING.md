@@ -2,9 +2,11 @@
 
 Thanks for your interest in StreamXLS.
 
-This repository is the public documentation and user site for StreamXLS, a
-commercial product of StreamXLS LLC. Its contents are proprietary (see
-[LICENSE](LICENSE)); the product itself is closed source.
+This repository hosts StreamXLS's signed installer releases and demo workbook,
+and serves as a feedback surface, for a commercial product of StreamXLS LLC. The
+product documentation lives at [streamxls.com/docs](https://streamxls.com/docs).
+This repository's contents are proprietary (see [LICENSE](LICENSE)); the product
+itself is closed source.
 
 ## Issues and discussions
 

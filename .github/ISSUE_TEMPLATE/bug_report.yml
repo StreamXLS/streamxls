@@ -53,6 +53,15 @@ body:
       required: false
 
   - type: input
+    id: tws-api-version
+    attributes:
+      label: TWS API version
+      description: The TWS API install StreamXLS binds to (the supported floor is 10.47.01).
+      placeholder: e.g. 10.47.01
+    validations:
+      required: false
+
+  - type: input
     id: excel-version
     attributes:
       label: Excel version

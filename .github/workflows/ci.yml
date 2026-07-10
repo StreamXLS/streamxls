@@ -42,7 +42,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Placeholder — wired up alongside first Releases drop
+      - name: Placeholder — no schema artifact in this repo
         run: |
-          echo "Topic-string schema validation will run here once the schema doc lands."
-          echo "Gated on the first Releases drop (code-signing onboarding milestone)."
+          echo "The topic-string schema is published at https://streamxls.com/docs-reference (not in this repo)."
+          echo "No schema artifact to validate here; this job is a stable no-op check."

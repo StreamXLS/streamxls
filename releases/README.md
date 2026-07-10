@@ -1,30 +1,15 @@
 # Releases
 
-Signed binary releases of StreamXLS will publish to the [GitHub Releases](https://github.com/StreamXLS/streamxls/releases) page of this repository (not to this directory).
+Signed binary releases of StreamXLS publish to the [GitHub Releases](https://github.com/StreamXLS/streamxls/releases) page of this repository (not to this directory). Verification steps — publisher identity and checksum — are documented at [streamxls.com/download](https://streamxls.com/download).
 
-This directory holds the documentation that accompanies releases — changelog notes, upgrade guides, hash-verification instructions for unsigned builds during the pre-cert window.
+**v1.0.0 is live.** Each release attaches the per-user installer `StreamXLS-Setup-<version>.exe`, signed by **StreamXLS LLC**, with its SHA-256 published in the release notes.
 
-## Current status
+## Verifying a download
 
-Signed releases are gated on code-signing certificate onboarding. Until that completes, this directory is a placeholder.
+1. **Signature.** Right-click the `.exe` → *Properties* → **Digital Signatures**; the signer should read *StreamXLS LLC* and the certificate should report as valid. Windows SmartScreen may still warn on first run while the certificate builds reputation at current volume — this is expected; [streamxls.com/download](https://streamxls.com/download) shows the exact prompt.
+2. **Checksum.** Compare the SHA-256 in the release notes against your local hash:
+   ```powershell
+   Get-FileHash -Algorithm SHA256 path\to\StreamXLS-Setup-X.Y.Z.exe
+   ```
 
-## What to expect
-
-When the first release lands:
-
-1. The `Releases` tab of this repository will show a new tag (e.g. `v1.0.0`).
-2. Attached artifact: a signed `.msi` installer. The publisher identity on the signature will be `StreamXLS LLC`.
-3. SHA-256 hash of the `.msi` will be published alongside the release notes for independent verification.
-4. Release notes will reference any relevant changes since the previous release and call out any breaking changes to the topic-string schema.
-
-## Pre-cert workaround (interim)
-
-If an unsigned binary publishes before the Trusted Signing cert is in place:
-
-- The `.msi` will be flagged by Windows SmartScreen as an unsigned installer.
-- The release notes will publish the SHA-256 hash. Verify locally:
-  ```powershell
-  Get-FileHash -Algorithm SHA256 path\to\downloaded\StreamXLS-X.Y.Z.msi
-  ```
-  and confirm the value matches what is published on the release page.
-- This window is interim — the goal is signed-by-default.
+Release notes call out any changes since the previous release, including any breaking changes to the topic-string schema.

@@ -14,10 +14,10 @@ The RTD protocol is the one Excel-native streaming surface that all of: (a) spea
 
 The IBKR Excel RTD sample at `C:\TWS API\samples\Excel\TwsRtdServer.sln` is a reference implementation of the RTD contract. It demonstrates the mechanism. It is — by IBKR's own description — not engineered for production deployment, and the gap is structural, not a missing-feature list:
 
-- The sample's topic schema is Market Data only. Adding Accounts / Positions / Order monitoring / Order submission families is not a patch — it is a new dimension on the subscription map, with its own caching, filter, and refresh semantics.
+- The sample's topic schema is Market Data only. Adding Accounts / Positions / Order monitoring / Order staging families is not a patch — it is a new dimension on the subscription map, with its own caching, filter, and refresh semantics.
 - Modal-dialog tolerance is not a single code change; it is the consequence of decoupling the upstream cache from Excel's polling cadence. That decoupling shape decision propagates through the whole component.
 - Automatic reconnection with subscription re-establishment and non-volatile-field preservation across the disconnect window is a project-wide invariant, not a localised feature.
-- Test coverage at the 1.75× ratio is a project posture, not a patch.
+- Test coverage sized for live-trading deployment is a project posture, not a patch.
 
 A ground-up build was the cheaper path to a hardened RTD server than a patch series against the sample. The implementation is presented as a **drop-in replacement** for workbooks built against the sample: the COM contract is identical, formula syntax is identical, and the optional legacy-ProgID alias (`tools/CreateAlias.ps1`) lets existing `=RTD("Tws.TwsRtdServerCtrl", ...)` formulas continue to resolve against this server's CLSID without modification.
 

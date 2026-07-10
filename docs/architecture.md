@@ -44,11 +44,11 @@ Microsoft Excel gives its UI thread priority over RTD updates. IBKR's own Excel 
 
 > [B]y design, Microsoft Excel gives precedence to the UI. Updates are ignored when a modal dialog is displayed, a cell is being edited, or Excel is busy. ([IBKR Campus, Excel RTD page](https://www.interactivebrokers.com/campus/ibkr-api-page/excel-rtd/))
 
-A naive RTD implementation drops the data delivered during those periods. StreamXLS maintains its internal cache independently of Excel's polling, so a modal dialog open over a streaming chain does not cause data loss — when Excel returns to a ready state, it reads the latest cached value rather than a stale or null one. The 72-second demo video shows this behaviour explicitly (Beat 2, modal Format Cells dialog over a streaming options chain).
+A naive RTD implementation drops the data delivered during those periods. StreamXLS maintains its internal cache independently of Excel's polling, so a modal dialog open over a streaming chain does not cause data loss — when Excel returns to a ready state, it reads the latest cached value rather than a stale or null one. The [demo video](https://vimeo.com/1191256765) shows this behaviour explicitly (Beat 2, modal Format Cells dialog over a streaming options chain).
 
 ## Topic schema
 
-StreamXLS exposes six topic families. The exact topic-string grammar is documented alongside the first Releases drop; the families are:
+StreamXLS exposes six topic families. The exact topic-string grammar — every family, contract-specification syntax, and field — is documented at [streamxls.com/docs-reference](https://streamxls.com/docs-reference). The families are:
 
 | Family | Topic-string shape | Examples |
 |---|---|---|
@@ -57,24 +57,15 @@ StreamXLS exposes six topic families. The exact topic-string grammar is document
 | **Accounts** | `account, <AccountNumber>, <field>[, <currency>]` | account values across 136 fields including NLV, buying power, currency balances, margin, OpenPositionCount |
 | **Positions** | `position, <Accounts>, <contract>, <field>` and `positions, <Accounts>, <ListField>` | per-account, per-contract position size, average cost, market value, realised / unrealised P&L; positions-list topics return `SymbolsCsv` / `ConIdCsv` / `PositionsChangedUtc` |
 | **Order monitoring** | `orders, <Accounts>, <ListField>` and `order, <orderID>, <field>` | list topics return `ListCsv` (all orders, including filled/cancelled) or `OpenListCsv` (open only); per-order topics return 30+ fields including `Status`, `Filled`, `Remaining`, `LmtPrice`, `AvgFillPrice`, `Side`, `OrderType`, `TIF` |
-| **Order submission** | `SendOrder, <key>=<value>, ...` | submits an order as the side-effect of subscribing; topic returns a status string (`Sending` → `Sent`, or `SendOrder Error: <message>`) |
+| **Order staging** | `StageOrder, <key>=<value>, ...` | stages an order as the side-effect of subscribing; topic returns a status string (`Sending` → `Staged`, or `SendOrder Error: <message>`) |
 
 Every family is queried through the same `=RTD()` worksheet function. There is no separate add-in, no VBA glue, no ActiveX object on the worksheet — only native RTD formulas.
-
-### Order submission
-
-The `SendOrder` family is documented in detail in the source-side `DETAILED_INSTRUCTIONS.md` (ships alongside the binary). Submission is a side-effect of the cell's subscription to the topic — placing the formula in a cell triggers the submission, and the cell value becomes a status string that progresses from `Sending` → `Sent`. The format is `key=value` tokens; required keys are `sym` / `side` / `shares` / `type` (plus `limit` if `type=LMT`); optional keys include `exch` (defaults to `SMART`), `account`, `fagroup`, `algo` / `algoparams`, and a `tag` / `nonce` token for forcing uniqueness when the same parameters need re-submission.
 
 ## Thread model
 
 The server uses a multi-threaded apartment (MTA) for the COM side and a dedicated EWrapper-callback thread for the TWS side, with a thread-safe internal cache between them. Pacing and reconnection logic live in the upstream-facing layer; Excel only ever sees the cache.
 
-## Testing
-
-The codebase is approximately 16,000 lines of production C# backed by approximately 29,000 lines of automated tests (~1.75× test-to-source ratio). The test suite covers the COM contract, the TWS-side wire protocol (against recorded fixtures), pacing-limit compliance, reconnection sequences, and the topic-family schema.
-
 ## What this does not do
 
 - **Replace TWS.** StreamXLS connects to a running TWS or IB Gateway; it does not implement the broker session itself.
 - **Run without TWS API socket permissions.** Standard IBKR account API enablement applies (Configure → API → Settings → Enable ActiveX and Socket Clients, plus trusted-IP setup).
-- **Cancel or modify orders via RTD.** The `SendOrder` family submits new orders; cancellation and modification are not exposed through the `=RTD()` surface in the current release. The Order monitoring family observes status transitions including cancellations originated elsewhere.

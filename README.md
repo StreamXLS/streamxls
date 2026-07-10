@@ -22,8 +22,8 @@ Watch the [72-second demo](https://vimeo.com/1191256765).
 
 ## Downloads
 
-- **[Releases](https://github.com/StreamXLS/streamxls/releases)** — signed, per-user installers (no admin rights required), with checksums. *First signed release publishes once code-signing certificate provisioning completes.*
-- **[Demo workbook](examples/StreamXLS.xlsm)** — every feature illustrated in one workbook, so you can start without reading further. (Also placed by the installer, and served at [streamxls.com/StreamXLS.xlsm](https://streamxls.com/StreamXLS.xlsm).)
+- **[Releases](https://github.com/StreamXLS/streamxls/releases)** — signed, per-user installer (no admin rights required), with a published SHA-256. The installer is signed by StreamXLS LLC; SmartScreen may still warn on first run at launch volume — [streamxls.com/download](https://streamxls.com/download) documents how to verify the publisher and checksum.
+- **[Demo workbook](examples/StreamXLS.xlsm)** — every feature illustrated in one workbook, so you can start without reading further. The recommended copy is the one the installer places (Start menu → *StreamXLS demo workbook*); a copy downloaded from here or from [streamxls.com/StreamXLS.xlsm](https://streamxls.com/StreamXLS.xlsm) carries Windows' Mark-of-the-Web, so Excel blocks its (signed) macros until you right-click the file → Properties → **Unblock**.
 
 ## What this repository is
 
