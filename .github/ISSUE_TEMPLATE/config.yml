@@ -1,8 +1,11 @@
 blank_issues_enabled: false
 contact_links:
   - name: Commercial inquiries (source license, OEM, partnership)
-    url: https://github.com/StreamXLS/streamxls/discussions/categories/commercial-inquiries
-    about: Open a Discussion under "Commercial inquiries" rather than an Issue.
+    url: https://streamxls.com/#contact
+    about: Email sales@streamxls.com — commercial conversations shouldn't be public Issues. (The site contact form works too.)
+  - name: Account & license help
+    url: https://streamxls.com/support
+    about: Private support by email — support@streamxls.com. One-US-business-day response target.
   - name: Documentation discussion
     url: https://github.com/StreamXLS/streamxls/discussions
     about: Open a Discussion for general questions about the docs / FAQ.

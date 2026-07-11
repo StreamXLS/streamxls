@@ -15,7 +15,7 @@ This document gives a high-level picture of how StreamXLS is structured. It is i
 ```
 
 - **Excel** owns the call into the RTD server. It calls `ConnectData()` when a worksheet introduces a new `=RTD(...)` topic, polls `RefreshData()` on the throttle interval, and calls `DisconnectData()` when a cell formula referencing the topic is removed.
-- **StreamXLS** is a COM component registered with the ProgID `Tws.Rtd` (with an optional legacy-ProgID alias `Tws.TwsRtdServerCtrl` for workbooks built against the IBKR sample). It receives RTD calls on a COM-managed apartment thread, maps topics to TWS subscriptions, and pushes value updates back into the cached snapshot that Excel reads on the next `RefreshData()` pass.
+- **StreamXLS** is a COM component registered with the ProgID `Tws.Rtd`. It receives RTD calls on Excel's COM apartment thread, maps topics to TWS subscriptions, and pushes value updates back into the cached snapshot that Excel reads on the next `RefreshData()` pass.
 - **TWS / IB Gateway** is the upstream — the IBKR client process that holds the broker session. StreamXLS is a TWS API client of the same kind as `ib_async`, the official `EClientSocket` samples, or a custom C++ client; it just speaks Excel's RTD protocol on the other side.
 
 ## Per-Excel-process connection model
@@ -44,7 +44,7 @@ Microsoft Excel gives its UI thread priority over RTD updates. IBKR's own Excel 
 
 > [B]y design, Microsoft Excel gives precedence to the UI. Updates are ignored when a modal dialog is displayed, a cell is being edited, or Excel is busy. ([IBKR Campus, Excel RTD page](https://www.interactivebrokers.com/campus/ibkr-api-page/excel-rtd/))
 
-A naive RTD implementation drops the data delivered during those periods. StreamXLS maintains its internal cache independently of Excel's polling, so a modal dialog open over a streaming chain does not cause data loss — when Excel returns to a ready state, it reads the latest cached value rather than a stale or null one. The [demo video](https://vimeo.com/1191256765) shows this behaviour explicitly (Beat 2, modal Format Cells dialog over a streaming options chain).
+A naive RTD implementation drops the data delivered during those periods. StreamXLS maintains its internal cache independently of Excel's polling, so a modal dialog open over a streaming chain does not cause data loss — when Excel returns to a ready state, it reads the latest cached value rather than a stale or null one. The [demo video](https://vimeo.com/1191256765) shows this behaviour explicitly (a modal Format Cells dialog opened over a streaming options chain).
 
 ## Topic schema
 
@@ -63,7 +63,7 @@ Every family is queried through the same `=RTD()` worksheet function. There is n
 
 ## Thread model
 
-The server uses a multi-threaded apartment (MTA) for the COM side and a dedicated EWrapper-callback thread for the TWS side, with a thread-safe internal cache between them. Pacing and reconnection logic live in the upstream-facing layer; Excel only ever sees the cache.
+Excel calls the RTD interface on its single-threaded apartment: all six `IRtdServer` callbacks arrive on Excel's thread, and the server's `UpdateNotify` signal marshals back to it. On the TWS side, a dedicated EWrapper-callback thread receives API messages. A thread-safe internal cache sits between the two; pacing and reconnection logic live in the upstream-facing layer, and Excel only ever sees the cache.
 
 ## What this does not do
 

@@ -8,7 +8,7 @@ body:
       value: |
         Thanks for taking the time to file a bug report. Please fill in the fields below.
 
-        For commercial inquiries (source license, OEM, partnership), please use Discussions, not Issues.
+        For account or license issues, email support@streamxls.com instead — those usually involve details that shouldn't be public. For commercial inquiries (source license, OEM, partnership), email sales@streamxls.com.
 
   - type: dropdown
     id: surface
@@ -78,7 +78,7 @@ body:
       required: false
 
   - type: input
-    id: twsrtdserver-version
+    id: streamxls-version
     attributes:
       label: StreamXLS version
       description: As shown on the Status tab of an example workbook, or in installed-programs.

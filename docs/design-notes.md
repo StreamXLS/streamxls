@@ -17,9 +17,9 @@ The IBKR Excel RTD sample at `C:\TWS API\samples\Excel\TwsRtdServer.sln` is a re
 - The sample's topic schema is Market Data only. Adding Accounts / Positions / Order monitoring / Order staging families is not a patch — it is a new dimension on the subscription map, with its own caching, filter, and refresh semantics.
 - Modal-dialog tolerance is not a single code change; it is the consequence of decoupling the upstream cache from Excel's polling cadence. That decoupling shape decision propagates through the whole component.
 - Automatic reconnection with subscription re-establishment and non-volatile-field preservation across the disconnect window is a project-wide invariant, not a localised feature.
-- Test coverage sized for live-trading deployment is a project posture, not a patch.
+- Test coverage sized for live-trading deployment is a project posture, not a patch. (The suite currently exceeds 2,400 automated tests.)
 
-A ground-up build was the cheaper path to a hardened RTD server than a patch series against the sample. The implementation is presented as a **drop-in replacement** for workbooks built against the sample: the COM contract is identical, formula syntax is identical, and the optional legacy-ProgID alias (`tools/CreateAlias.ps1`) lets existing `=RTD("Tws.TwsRtdServerCtrl", ...)` formulas continue to resolve against this server's CLSID without modification.
+A ground-up build was the cheaper path to a hardened RTD server than a patch series against the sample. For workbooks built against the sample, migration is mechanical: the COM contract is identical and the formula syntax is compatible, so re-pointing a workbook's formulas from the sample's ProgID (`Tws.TwsRtdServerCtrl`) to `Tws.Rtd` is the whole change.
 
 ## Per-Excel-process connection model
 
@@ -38,10 +38,6 @@ Without this, a workbook with a single `=RTD(...)` formula copy-dragged across 2
 
 `ActiveTopicCount` on the Status tab surfaces the deduplicated count directly so that the user can see (and trust) what is going out over the wire.
 
-## Sync wrapper precedent
-
-In late 2025, IBKR's API team [introduced an official synchronous Python wrapper](https://www.interactivebrokers.com/campus/trading-lessons/the-new-synchronous-wrapper-for-tws-api/) to give Python users an ergonomic surface and stated explicitly that the official wrapper sits in for what third-party libraries previously filled. The institutional pattern — IBKR shipping an officially-supported tool to cover a Python ergonomics gap — informs the framing of this project on the Excel side: a hardened Excel RTD surface, also designed for production use, also operating in a category that has historically been served by samples and community efforts.
-
 ## Closed-source posture
 
-The repository you are reading is documentation, examples, and binary releases. The source itself stays private. The rationale: source distribution would commit the project to a community-support model (issue triage on patches, downstream-fork compatibility, etc.) that is not the product surface intended for the current customer set. Commercial source-license terms for trading-firm in-house use are available case-by-case via [GitHub Discussions](https://github.com/StreamXLS/streamxls/discussions).
+The repository you are reading is documentation, examples, and binary releases. The source itself stays private. The rationale: source distribution would commit the project to a community-support model (issue triage on patches, downstream-fork compatibility, etc.) that is not the product surface intended for the current customer set. Commercial source-license terms for trading-firm in-house use are available case-by-case: [sales@streamxls.com](mailto:sales@streamxls.com).

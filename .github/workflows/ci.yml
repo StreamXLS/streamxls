@@ -34,15 +34,3 @@ jobs:
           fail: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  schema-stub:
-    name: Topic schema validation (placeholder)
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Placeholder — no schema artifact in this repo
-        run: |
-          echo "The topic-string schema is published at https://streamxls.com/docs-reference (not in this repo)."
-          echo "No schema artifact to validate here; this job is a stable no-op check."
