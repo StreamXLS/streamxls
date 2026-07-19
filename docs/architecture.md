@@ -28,13 +28,13 @@ Consequence: running two Excel windows side by side (a "Live" workbook and a "Sc
 
 TWS accepts one connection per client ID. Two Excel instances therefore need two distinct client IDs. By default, StreamXLS picks a per-process client ID automatically to reduce collisions across instances and with concurrent `ib_async` or sample-code sessions. To pin a specific client ID (for example, to satisfy a TWS configuration that requires `clientId=0` for certain features), set the `TWS_RTD_CLIENT_ID` environment variable before launching Excel.
 
-Note that `reqAutoOpenOrders(true)` — the TWS API call that pushes order-status updates from *other* clients (FlexTrader, mobile app, additional API sessions) into your client — only works with `clientId=0`. Because StreamXLS's default client ID is randomised, it does not receive auto-pushed order updates from other clients; instead, it polls `reqAllOpenOrders()` at a configurable interval (default 15 seconds, via `TWS_RTD_ORDER_REFRESH_SECONDS`) whenever order topics are active. Set `TWS_RTD_CLIENT_ID=0` if you want auto-push instead, accepting that it precludes running other API clients alongside.
+Order monitoring is **poll-based regardless of client ID**: whenever order topics are active, StreamXLS refreshes the order snapshot at a configurable interval (default 15 seconds, via `TWS_RTD_ORDER_REFRESH_SECONDS`). Order-status cells can therefore lag a fill or cancel by up to one polling interval; pinning a particular client ID (including `0`) does not change the refresh mechanism.
 
 ## Subscription deduplication within a process
 
 Inside a single Excel process, however, the picture is reversed. Many cells in the same workbook (or across multiple workbooks open in the same instance) can reference the same logical topic — for example, a top-of-book quote for `SPY` shown in 30 different cells.
 
-StreamXLS deduplicates: there is one TWS subscription per unique topic per process, regardless of how many `=RTD()` cells reference it. The deduplication is visible to the user as `ActiveTopicCount` on the Status tab — that count tracks distinct upstream subscriptions, not Excel cell references.
+StreamXLS deduplicates: one subscribed topic per unique topic string per process, regardless of how many `=RTD()` cells reference it. The deduplication is visible to the user as `ActiveTopicCount` on the Status tab — that count tracks distinct subscribed topics, not Excel cell references (the engine may consolidate or fan out the underlying TWS API requests further).
 
 This is what lets a workbook with hundreds of `=RTD()` formulas run on a single API client without saturating pacing limits.
 
@@ -53,10 +53,10 @@ StreamXLS exposes six topic families. The exact topic-string grammar — every f
 | Family | Topic-string shape | Examples |
 |---|---|---|
 | **Status** | `status, <field>` | `IsConnected`, `ActiveTopicCount`, `LastUpdateUtc`, `ServerHeartbeatUtc`, `PositionDataState`, `OrderDataState`, `AccountsCSV` |
-| **Market Data** | `<contract>, <field>` | top-of-book quotes (bid / ask / last / size / volatility / Greeks), option chains, contract details; derived fields `MarketPrice`, `LastOrClose` |
-| **Accounts** | `account, <AccountNumber>, <field>[, <currency>]` | account values across 136 fields including NLV, buying power, currency balances, margin, OpenPositionCount |
+| **Market Data** | `<contract>, <field>` | top-of-book quotes (bid / ask / last / size / volatility / Greeks), option-chain enumeration (expirations / strikes / strike step); derived fields `MarketPrice`, `LastOrClose` |
+| **Accounts** | `account, <AccountNumber>, <field>[, <currency>]` | the full TWS-delivered account value set (~136 keys on a typical margin account; the set varies by account type) including NLV, buying power, currency balances, margin, plus computed fields like OpenPositionCount |
 | **Positions** | `position, <Accounts>, <contract>, <field>` and `positions, <Accounts>, <ListField>` | per-account, per-contract position size, average cost, market value, realised / unrealised P&L; positions-list topics return `SymbolsCsv` / `ConIdCsv` / `PositionsChangedUtc` |
-| **Order monitoring** | `orders, <Accounts>, <ListField>` and `order, <orderID>, <field>` | list topics return `ListCsv` (all orders, including filled/cancelled) or `OpenListCsv` (open only); per-order topics return 30+ fields including `Status`, `Filled`, `Remaining`, `LmtPrice`, `AvgFillPrice`, `Side`, `OrderType`, `TIF` |
+| **Order monitoring** | `orders, <Accounts>, <ListField>` and `order, <permId>, <field>` | list topics return `ListCsv` (all orders, including filled/cancelled) or `OpenListCsv` (open only) as permId lists; per-order topics address an order by its **permId** (from the list topics — not the small per-client order id TWS displays) and return [roughly 80 read fields, a closed set](reference.md#5-order-read-fields) including `Status`, `Filled`, `Remaining`, `LmtPrice`, `AvgFillPrice`, `Side`, `OrderType`, `TIF` |
 | **Order staging** | `StageOrder, <key>=<value>, ...` | stages an order as the side-effect of subscribing; topic returns a status string (`Sending` → `Staged`, or `SendOrder Error: <message>`) |
 
 Every family is queried through the same `=RTD()` worksheet function. There is no separate add-in, no VBA glue, no ActiveX object on the worksheet — only native RTD formulas.

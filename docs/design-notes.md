@@ -32,11 +32,11 @@ The cost is N API client connections. For typical desktop use (1–3 Excel insta
 
 ## Subscription deduplication within a process
 
-Within a single Excel process, the opposite optimisation applies: every `=RTD()` cell that references the same logical topic shares one TWS subscription. The deduplication key is the canonicalised topic-string tuple, not the cell address.
+Within a single Excel process, the opposite optimisation applies: every `=RTD()` cell that references the same logical topic shares one subscribed topic. The deduplication key is the canonicalised topic-string tuple, not the cell address.
 
-Without this, a workbook with a single `=RTD(...)` formula copy-dragged across 200 rows of a `SPY` chain would issue 200 subscription requests. With it: one.
+Without this, a workbook with a single `=RTD(...)` formula copy-dragged across 200 rows of a `SPY` chain would drive 200 separate subscriptions. With it: one.
 
-`ActiveTopicCount` on the Status tab surfaces the deduplicated count directly so that the user can see (and trust) what is going out over the wire.
+`ActiveTopicCount` on the Status tab surfaces the deduplicated topic count directly — the unit the engine actually manages — rather than the raw cell count.
 
 ## Closed-source posture
 
