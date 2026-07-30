@@ -12,7 +12,7 @@ itself is closed source.
 
 Bug reports, questions, and feature requests are welcome via Issues and
 Discussions. For commercial inquiries (source license, OEM / white-label,
-integration), see [docs/licensing.md](docs/licensing.md).
+integration), email [sales@streamxls.com](mailto:sales@streamxls.com).
 
 ## Pull requests
 

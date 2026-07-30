@@ -1,34 +1,31 @@
 # Frequently Asked Questions
 
-Product questions — install, trial, formulas, troubleshooting — are answered at [streamxls.com/docs](https://streamxls.com/docs) and [streamxls.com/faq](https://streamxls.com/faq). This page covers the questions a GitHub visitor tends to ask.
+Basic product questions — install, trial, formulas, troubleshooting — are answered at [streamxls.com/docs](https://streamxls.com/docs) and [streamxls.com/faq](https://streamxls.com/faq). This page covers the questions a GitHub visitor tends to ask.
 
 ## What is RTD?
 
-RTD (Real-Time Data) is Microsoft Excel's native streaming-data protocol. An RTD server is a COM component that Excel queries via the `=RTD(progID, server, topic1, topic2, ...)` worksheet function. Excel owns the subscription lifecycle (`ConnectData` / `RefreshData` / `DisconnectData`); the server's job is to maintain the underlying subscriptions and surface value updates that Excel reads on its next refresh pass.
+RTD (Real-Time Data) is Microsoft Excel's native streaming-data protocol. An RTD server is a COM component that Excel queries via the `=RTD(progID, server, topic1, topic2, ...)` worksheet function. Excel owns the subscription lifecycle (`ConnectData` / `RefreshData` / `DisconnectData`); the server's job is to maintain the underlying subscriptions and provide the latest data when requested by Excel.
 
-RTD is the documented streaming-data path for new Excel work. From [IBKR's Excel RTD documentation](https://www.interactivebrokers.com/campus/ibkr-api-page/excel-rtd/):
-
-> RTD is Microsoft's recommended replacement for DDE (Dynamic Data Exchange).
+RTD is Microsoft's recommended replacement for DDE (Dynamic Data Exchange) and is capable of serving realtime data at the scale required for modern trading and asset management operations.
 
 ## What is StreamXLS?
 
-A production-grade `IRtdServer` implementation that connects to Interactive Brokers' TWS (or IB Gateway) and streams Market Data, Account values, Positions, and Orders using Excel's native `=RTD()` formula.
+A production-grade `RtdServer` implementation that connects to Interactive Brokers' TWS (or IB Gateway) and streams Market Data, Account values, Positions, and Orders using Excel's native `=RTD()` formula.
 
 ## How does this relate to the `TwsRtdServer` sample in `C:\TWS API\samples\Excel`?
 
-Interactive Brokers ships a sample "TwsRtdServer" with the TWS API distribution. From IBKR's Excel RTD documentation:
+Interactive Brokers ships a sample "TwsRtdServer" with the TWS API. From IBKR's Excel RTD documentation:
 
 > [The sample applications] are not intended to be used as production level trading tools.
 
 StreamXLS is a separate, independent implementation of the same `IRtdServer` COM contract, designed for live-trading deployment. It is not affiliated with Interactive Brokers. Differences include:
 
-- **Topic schema beyond Market Data.** Account values (around 136 fields, per-currency), Positions (with streaming P&L), Order monitoring ([roughly 80 read fields, a closed set](reference.md#5-order-read-fields)), and Order staging via a `StageOrder` topic family are all exposed as `=RTD()` formulas.
-- **Excel UI-priority handling.** Excel pauses its RTD pull while a modal dialog is open, while a cell is in edit mode, or while Excel is otherwise busy. IBKR's docs describe this as inherent to Excel's design as a trading application. StreamXLS maintains its internal cache independently of Excel's polling cadence so the data sitting in the cache when Excel returns to a ready state is the latest, not whatever happened to arrive during Excel's polling window.
-- **Multi-instance behaviour.** Two `EXCEL.EXE` processes running on the same host each open their own TWS API client connection with separate auto-allocated client IDs.
+- **Topic schema beyond Market Data.** Account values (130+ fields, per-currency), Positions (with streaming P&L), Order monitoring ([roughly 80 fields](reference.md#5-order-read-fields)), and Order staging via a `StageOrder` topic family are all exposed as `=RTD()` formulas.
+- **Excel UI-priority handling.** Excel stops calculating while you edit a formula, interact with a dialog box or setting, or while Excel is otherwise busy. This tends to break realtime data feeds that expect the application to always be available for updates.  The RTD protocol is different: StreamXLS listens to updates and maintains the latest data internally, then provides that only when Excel asks and is ready to receive it.
+- **Multi-instance behaviour.** Separate `EXCEL.EXE` processes can connect to the same TWS (or IB Gateway) instance.  And a single Excel workbook can connect to multiple TWS/Gateway instances.
 - **Subscription deduplication within a process.** Many `=RTD()` cells referencing the same logical topic share a single upstream subscription.
-- **Automatic reconnection** with subscription re-establishment + non-volatile-field preservation across the disconnect window.
-- **Test coverage** sized for live-trading deployment — a suite of more than 2,400 automated tests.
-- **Migration path.** Existing workbooks built against the IBKR sample can be migrated by replacing the sample's ProgID in their formulas with `Tws.Rtd`.
+- **Automatic reconnection** and resubscription.
+- **Test coverage** engineered for reliability — every release is verified with a suite of more than 3,000 automated tests.
 
 ## Can StreamXLS place orders?
 
@@ -38,9 +35,7 @@ StreamXLS is a separate, independent implementation of the same `IRtdServer` COM
 =RTD("Tws.Rtd",,"StageOrder","sym=AAPL","side=BUY","shares=100","type=LMT","limit=150.05","exch=SMART")
 ```
 
-By default a staged order arrives in TWS **deactivated** — visible in the TWS order list with a **Submit** button, and released to the market only when you click it there; `park=true` instead stages an invisible `Transmit=false` ticket that TWS shows only in its order-entry row, released with **Transmit**. Either way, nothing reaches the market without a human action in TWS (see [Cell states and lifecycle](detailed-instructions.md#cell-states-and-lifecycle)). The RTD formula returns a status string — `Sending` while the send is scheduled, `Staged` once the order has been delivered to TWS without error, then it follows TWS's own reports (`Submitted`, `Filled`, `Canceled`, …) after you release it; `SendOrder Error: <message>` / `Error <code>: <message>` on validation / connection / TWS errors. Required parameters are `sym` / `side` / `shares` / `type` (plus `limit` if `type=LMT`); common optional parameters include `exch` (defaults to `SMART`), `account`, and a `tag` / `nonce` token for uniqueness when the same parameters need to be staged twice in a row (Excel deduplicates identical RTD topics, so a per-submission tag forces a fresh subscription).
-
-The full grammar and every status value are documented at [streamxls.com/docs-reference](https://streamxls.com/docs-reference); the demo workbook (`StreamXLS.xlsm`) includes a worked example.
+By default a staged order arrives in TWS **deactivated** — visible in the TWS order list with a **Submit** button, and released to the market only when you click it there; `park=true` instead stages an invisible `Transmit=false` ticket that TWS shows only in its order-entry row, released with **Transmit**. Either way, nothing reaches the market without a human action in TWS (see [Cell states and lifecycle](detailed-instructions.md#cell-states-and-lifecycle)).
 
 ## How are TWS client IDs allocated across multiple Excel instances?
 
@@ -69,11 +64,11 @@ API permissions, trusted-IP configuration, and master-client-ID setup follow the
 
 ## What versions of Windows / Excel / TWS are supported?
 
-Windows 10 / 11, Microsoft Excel for Windows (desktop, 32- or 64-bit), .NET Framework 4.8 (present by default on modern Windows), and Interactive Brokers' current TWS / IB Gateway. The supported **TWS API** floor is **10.47.01** — StreamXLS binds to your own entitled TWS API install at runtime (the API DLL is not shipped), and market data additionally requires the connection to negotiate `ServerVersion ≥ 206`, which current TWS / Gateway builds do. The version floor and its rationale are documented at [streamxls.com/docs-config](https://streamxls.com/docs-config).
+Windows 10 / 11, Microsoft Excel for Windows (desktop, 32- or 64-bit), .NET Framework 4.8 (present by default on modern Windows), Interactive Brokers' current TWS / IB Gateway.  You must also install the [**TWS API**](https://interactivebrokers.github.io/) — version **10.47.01** is the current minimum.
 
 ## How does pricing work?
 
-There is a 30-day, full-featured trial that is keyless — it starts automatically the first time StreamXLS is used in Excel, no sign-up required. Subscriptions start at **$590/year**; current pricing is on the [pricing page](https://streamxls.com/buy). A license key arrives by email after purchase and is activated in the StreamXLS Control Panel. The trial is the evaluation window: paid subscriptions are non-refundable, but you can cancel future renewals at any time (effective at the end of the paid period). Source-license terms (for trading-firm in-house use) are negotiated case-by-case: [sales@streamxls.com](mailto:sales@streamxls.com).
+There is a 30-day, full-featured trial that is keyless — it starts automatically the first time StreamXLS is used in Excel, no sign-up required. Subscriptions start at **$59/month**; current pricing is on the [pricing page](https://streamxls.com/buy). A license key arrives by email after purchase and is activated in the StreamXLS Control Panel. The trial is the evaluation window: paid subscriptions are non-refundable, but you can cancel future renewals at any time (effective at the end of the paid period).
 
 ## What happens when the trial or a subscription ends?
 

@@ -1,20 +1,30 @@
 # Architecture Overview
 
-This document gives a high-level picture of how StreamXLS is structured. It is intended for engineers evaluating the product (or considering a source license) — not as a complete API reference.
+This document gives a high-level view of how StreamXLS works.
 
 ## Component layout
 
-```
-+------------------+      COM (RTD)      +------------------+      TWS Socket API     +------------------+
-|                  | <-----------------> |                  | <---------------------> |                  |
-|   Microsoft      |  IRtdServer.        |  StreamXLS       |  EClientSocket /        |   TWS / IB       |
-|   Excel          |  ConnectData /      |  (this product)  |  EWrapper callbacks     |   Gateway        |
-|   (EXCEL.EXE)    |  RefreshData /      |                  |                         |                  |
-|                  |  DisconnectData     |                  |                         |                  |
-+------------------+                     +------------------+                         +------------------+
+```mermaid
+flowchart LR
+    excel["Microsoft Excel<br/>EXCEL.EXE"]
+
+    subgraph sx["StreamXLS — in-process COM server, ProgID Tws.Rtd"]
+        rtd["RTD interface<br/><i>Excel apartment thread</i>"]
+        cache[("thread-safe<br/>snapshot cache")]
+        api["TWS client layer<br/><i>EWrapper callback thread</i>"]
+        rtd <--> cache
+        cache <--> api
+    end
+
+    tws["TWS / IB Gateway<br/>broker session"]
+
+    excel -->|"IRtdServer: ServerStart, ConnectData, RefreshData,<br/>DisconnectData, Heartbeat, ServerTerminate"| rtd
+    rtd -->|"IRTDUpdateEvent: UpdateNotify"| excel
+    api -->|"EClientSocket requests<br/>reqMktData, reqPositions, placeOrder, ..."| tws
+    tws -->|"EWrapper callbacks"| api
 ```
 
-- **Excel** owns the call into the RTD server. It calls `ConnectData()` when a worksheet introduces a new `=RTD(...)` topic, polls `RefreshData()` on the throttle interval, and calls `DisconnectData()` when a cell formula referencing the topic is removed.
+- **Excel** owns every call into the RTD server. `IRtdServer` has exactly six methods, all of them invoked by Excel: `ServerStart()` when Excel first instantiates the server (this is where Excel hands over its `IRTDUpdateEvent` callback object), `ConnectData()` when a worksheet introduces a new `=RTD(...)` topic, `RefreshData()` on the throttle interval, `DisconnectData()` when the last cell formula referencing a topic is removed, `Heartbeat()` to confirm the server is still alive after a quiet period, and `ServerTerminate()` on shutdown. The single call in the other direction is `IRTDUpdateEvent.UpdateNotify()` — StreamXLS telling Excel that a `RefreshData()` pass has something to collect.
 - **StreamXLS** is a COM component registered with the ProgID `Tws.Rtd`. It receives RTD calls on Excel's COM apartment thread, maps topics to TWS subscriptions, and pushes value updates back into the cached snapshot that Excel reads on the next `RefreshData()` pass.
 - **TWS / IB Gateway** is the upstream — the IBKR client process that holds the broker session. StreamXLS is a TWS API client of the same kind as `ib_async`, the official `EClientSocket` samples, or a custom C++ client; it just speaks Excel's RTD protocol on the other side.
 
@@ -22,7 +32,7 @@ This document gives a high-level picture of how StreamXLS is structured. It is i
 
 Each `EXCEL.EXE` process that loads StreamXLS establishes its own TWS API client connection. This is the standard Excel + COM behaviour — every instance of Excel loads its own copy of the in-process COM server — and StreamXLS leans into it rather than fighting it.
 
-Consequence: running two Excel windows side by side (a "Live" workbook and a "Scratch" workbook in a separate instance, for example) produces two independent TWS API client connections. They do not contend for a shared subscription map.
+Consequence: running two Excel instances, both requesting data from a TWS session, creates two independent StreamXLS instances, each with its own TWS client connection. They do not contend for a shared subscription map.
 
 ### clientId allocation
 

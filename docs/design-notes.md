@@ -17,7 +17,7 @@ The IBKR Excel RTD sample at `C:\TWS API\samples\Excel\TwsRtdServer.sln` is a re
 - The sample's topic schema is Market Data only. Adding Accounts / Positions / Order monitoring / Order staging families is not a patch — it is a new dimension on the subscription map, with its own caching, filter, and refresh semantics.
 - Modal-dialog tolerance is not a single code change; it is the consequence of decoupling the upstream cache from Excel's polling cadence. That decoupling shape decision propagates through the whole component.
 - Automatic reconnection with subscription re-establishment and non-volatile-field preservation across the disconnect window is a project-wide invariant, not a localised feature.
-- Test coverage sized for live-trading deployment is a project posture, not a patch. (The suite currently exceeds 2,400 automated tests.)
+- Test coverage sized for live-trading deployment is a project posture, not a patch. (The suite currently exceeds 4,000 automated tests.)
 
 A ground-up build was the cheaper path to a hardened RTD server than a patch series against the sample. For workbooks built against the sample, migration is mechanical: the COM contract is identical and the formula syntax is compatible, so re-pointing a workbook's formulas from the sample's ProgID (`Tws.TwsRtdServerCtrl`) to `Tws.Rtd` is the whole change.
 
@@ -28,16 +28,12 @@ The decision to give each Excel process its own TWS API connection — rather th
 1. **TWS API client-ID semantics.** A single client connection is logically a single agent to TWS. Multiplexing N agents over one connection requires the server to maintain an N×K subscription map and demultiplex callbacks to the right Excel instance, with all the pacing-limit consequences amplified by N.
 2. **Failure-isolation.** A misbehaving formula or a hung Excel instance does not stall API delivery to the other instance.
 
-The cost is N API client connections. For typical desktop use (1–3 Excel instances) this is well within IBKR's documented limits.
+The cost is *N* API client connections. For typical desktop use (1–3 Excel instances) this is well within IBKR's documented limits.
 
 ## Subscription deduplication within a process
 
-Within a single Excel process, the opposite optimisation applies: every `=RTD()` cell that references the same logical topic shares one subscribed topic. The deduplication key is the canonicalised topic-string tuple, not the cell address.
+Within a single Excel process, the opposite optimization applies: every `=RTD()` cell that references the same logical topic shares one subscribed topic. The deduplication key is the canonicalised topic-string tuple, not the cell address.
 
 Without this, a workbook with a single `=RTD(...)` formula copy-dragged across 200 rows of a `SPY` chain would drive 200 separate subscriptions. With it: one.
 
 `ActiveTopicCount` on the Status tab surfaces the deduplicated topic count directly — the unit the engine actually manages — rather than the raw cell count.
-
-## Closed-source posture
-
-The repository you are reading is documentation, examples, and binary releases. The source itself stays private. The rationale: source distribution would commit the project to a community-support model (issue triage on patches, downstream-fork compatibility, etc.) that is not the product surface intended for the current customer set. Commercial source-license terms for trading-firm in-house use are available case-by-case: [sales@streamxls.com](mailto:sales@streamxls.com).
