@@ -3,7 +3,7 @@
 Basic documentation is at [streamxls.com/docs](https://streamxls.com/docs). This folder holds the complete reference documentation. Pick the doc that fits what you need:
 
 - **[quickstart.md](quickstart.md)** — start here. Your first `=RTD()` formulas across status, account, market data, positions, and orders.
-- **[detailed-instructions.md](detailed-instructions.md)** — the formulas in depth: contract specification (options, futures, forex, combos, ConID), staging orders, the subscription lifecycle, and troubleshooting.
+- **[manual.md](manual.md)** — the formulas in depth: contract specification (options, futures, forex, combos, ConID), staging orders, the subscription lifecycle, and troubleshooting.
 - **[reference.md](reference.md)** — the comprehensive reference: every topic, every field, every setting.
 
 ## Supporting pages

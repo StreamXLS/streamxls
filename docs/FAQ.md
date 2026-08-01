@@ -35,11 +35,11 @@ StreamXLS is a separate, independent implementation of the same `IRtdServer` COM
 =RTD("Tws.Rtd",,"StageOrder","sym=AAPL","side=BUY","shares=100","type=LMT","limit=150.05","exch=SMART")
 ```
 
-By default a staged order arrives in TWS **deactivated** — visible in the TWS order list with a **Submit** button, and released to the market only when you click it there; `park=true` instead stages an invisible `Transmit=false` ticket that TWS shows only in its order-entry row, released with **Transmit**. Either way, nothing reaches the market without a human action in TWS (see [Cell states and lifecycle](detailed-instructions.md#cell-states-and-lifecycle)).
+By default a staged order arrives in TWS **deactivated** — visible in the TWS order list with a **Submit** button, and released to the market only when you click it there; `park=true` instead stages an invisible `Transmit=false` ticket that TWS shows only in its order-entry row, released with **Transmit**. Either way, nothing reaches the market without a human action in TWS (see [Formula states and lifecycle](manual.md#formula-states-and-lifecycle)).
 
 ## How are TWS client IDs allocated across multiple Excel instances?
 
-Each Excel process that loads StreamXLS opens its own TWS API client connection. By default, a per-process client ID is chosen automatically to reduce collisions across instances. To pin a specific client ID, set the `TWS_RTD_CLIENT_ID` environment variable before launching Excel.
+Each Excel process that loads StreamXLS opens its own TWS API client connection. By default, client IDs are chosen automatically to reduce collisions across instances. To pin a specific client ID, set the `TWS_RTD_CLIENT_ID` environment variable before launching Excel.
 
 ## Is the source code available?
 

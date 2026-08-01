@@ -1,33 +1,37 @@
 # StreamXLS RTD reference
 
-Complete reference for the RTD vocabulary the StreamXLS engine serves: topics, contract keys, StageOrder write keys, order and position fields, status and metadata fields, account keys, configuration keys, and cell-error semantics. Every RTD formula takes the form `=RTD("tws.rtd", , "<tokens…>")`.
+Complete reference for the RTD vocabulary the StreamXLS engine serves: topics, market-data fields, contract keys, StageOrder write keys, order and position fields, status and metadata fields, account keys, configuration keys, and cell-error semantics. Every RTD formula takes the form `=RTD("tws.rtd", , "{arguments…}")`.
 
-**Generated file — do not hand-edit.** This file is produced from engine ground truth by `ReferenceDocTests` in the test suite. Field and key NAMES and their COVERAGE are code-asserted (every name the code yields is either described here or explicitly skipped-with-reason, enforced by partition tests); the DESCRIPTIONS are authored and reviewed, not code-asserted. To change the file, edit the generator's description maps and re-run the suite with the environment variable `STREAMXLS_UPDATE_REFERENCE_DOCS=1`, which rewrites this file.
+Generated from the engine. The topics, fields, and keys below are taken from the shipping code and re-checked against it by the test suite on every run, so the names here are the names your installed engine answers to. Every name the code yields is either described here, listed as unsupported, or held back by name in the suite — a few developer-only settings and one unpublished field — so nothing drifts out of the reference silently. The descriptions beside the names are written and reviewed by hand.
 
-**Range/limit caveat:** numeric ranges, defaults, and limits quoted in prose (e.g. configuration value ranges) are authored literals — they are NOT asserted against the code's own range constants and can drift; treat them as documentation, and the engine's validation messages as authoritative. Sections marked *(authored)* carry prose whose content the ratchet does not verify.
+**Numbers quoted in prose are documentation, not contract.** Ranges, defaults, and limits written into the text — configuration value ranges especially — are maintained by hand and can lag a release. Where a number matters, trust the engine over this page: it validates the value you supply, falls back or clamps when the value is out of range, and reports what it did in the `CONFIGWARNINGS` status field. Passages marked *(authored)* are hand-written the same way — the suite checks the names around them, not the sentences themselves.
 
-## 1. Topic and category tokens
+## 1. Topic and category arguments
 
-A category token as the first non-connection argument selects the request type. Market-data topics carry no category token — a contract plus a field name routes to market data.
+A category argument as the first non-connection argument selects the request type. Market-data topics carry no category argument — a contract plus a field name routes to market data.
 
-| Token | Request type |
+| Argument | Request type |
 | --- | --- |
 | `ACCOUNT` | Account value for one account (e.g. NetLiquidation). |
 | `POSITION` | A single position (one contract, one or more accounts). |
-| `POSITIONS` | A positions list (SymbolsCsv / ConIdCsv / PositionsChangedUtc). |
+| `POSITIONS` | A positions list (SymbolsCsv / ConIdCsv). |
 | `ORDER` | A single order addressed by permId. |
 | `ORDERS` | An orders list (ListCsv / OpenListCsv). |
-| `STATUS` | A connection status field addressed by name — the closed status-field set (including the four UPDATE_* breadcrumb fields it shares with metadata). Metadata fields (VERSION, LICENSE_*, TWSAPI_*, …) are addressed by BARE name, not through this token. |
+| `STATUS` | A connection status field addressed by name — the closed status-field set (including the four UPDATE_* update-check fields it shares with metadata). Metadata fields (VERSION, LICENSE_*, TWSAPI_*, …) are addressed by BARE name, not through this argument. |
 | `SENDORDER` | Stage an order in TWS (synonym of StageOrder). |
 | `STAGEORDER` | Stage an order in TWS (the canonical name; SENDORDER is an accepted synonym). |
 
 ### Resolution order
 
-*(authored — not code-asserted.)* The request type is resolved by scanning the argument tokens in this order, first match wins: (1) a bare metadata field name; (2) an explicit category token from the table above; (3) a bare option-definition field name; (4) a bare name-addressable status field. If none match, the request is treated as market data. `MARKETDATATYPE` is deliberately excluded from the bare-status fall-through so a per-contract `MARKETDATATYPE` stays market data; reach the connection-level status field via the explicit `status` token.
+*(authored — not code-asserted.)* The request type is resolved by scanning the arguments in this order, first match wins: (1) a bare metadata field name; (2) an explicit category argument from the table above; (3) a bare option-definition field name; (4) a bare name-addressable status field. If none match, the request is treated as market data. `MARKETDATATYPE` is deliberately excluded from the bare-status fall-through so a per-contract `MARKETDATATYPE` stays market data; reach the connection-level status field via the explicit `status` argument.
 
 ## 2. Market-data fields
 
-Request with a contract and a field name, e.g. `=RTD("tws.rtd", , "AAPL", "BID")`. Field names are case-insensitive. The full supported set is enumerated below by group.
+Request with a contract and a field name, e.g. `=RTD("tws.rtd", , "AAPL", "BID")`. Field names are case-insensitive. The full supported set is enumerated below by group. EVERY formula names the field it wants: a field name outside the set below fails loud rather than serving some other number under your header.
+
+Two arguments are documented as blank-able — they carry a MEANING when left empty: the `{Accounts}` filter on `position`/`positions`/`orders` (blank = all accounts, same as `*`), and the connection argument (blank = the default connection — the demo workbook's `A2` "Custom connection" cell). Every OTHER argument left blank is simply dropped, provided the formula names its field as above. Write a blank-able connection reference LAST: on `position` and `positions` the first argument slot belongs to the `{Accounts}` filter, so a blank connection cell placed ahead of the contract takes that slot, and a filled accounts cell then lands in the contract slot and fails loud.
+
+The field can also be named explicitly, as its own `qt=BID` argument. The vocabulary is the same as the bare form; a `qt=` value outside the set below fails loud rather than falling back to `LAST`.
 
 ### Market data — core price and size
 
@@ -47,7 +51,7 @@ Request with a contract and a field name, e.g. `=RTD("tws.rtd", , "AAPL", "BID")
 | `BIDEXCH` | Exchange(s) posting the best bid. |
 | `ASKEXCH` | Exchange(s) posting the best ask. |
 | `LASTEXCH` | Exchange of the last trade. |
-| `LASTTIME` | Timestamp of the last trade. |
+| `LASTTIME` | Timestamp of the last trade, passed through as TWS sends it: Unix epoch SECONDS as text, not an Excel date-time. Convert with `=value/86400 + DATE(1970,1,1)` for a UTC date-time. |
 | `HALTED` | Trading-halt indicator (0 = not halted; >0 = halted). |
 
 ### Market data — odd-lot quotes
@@ -65,7 +69,7 @@ Request with a contract and a field name, e.g. `=RTD("tws.rtd", , "AAPL", "BID")
 
 | Field | Description |
 | --- | --- |
-| `MARKETPRICE` | Derived mid: (BID+ASK)/2 when both present, else LAST, else CLOSE; blank until a source is available. |
+| `MARKETPRICE` | Derived mid: `(BID+ASK)/2` when both present, else `LAST`, else `CLOSE`; blank until a source is available. |
 | `LASTORCLOSE` | LAST when available, otherwise CLOSE. |
 
 ### Market data — data-tier indicators
@@ -82,7 +86,7 @@ Request with a contract and a field name, e.g. `=RTD("tws.rtd", , "AAPL", "BID")
 | `BIDTICKATTRIB` | Tick attributes for the bid option-computation snapshot. |
 | `BIDIMPLIEDVOL` | Implied volatility from the bid option computation. |
 | `BIDDELTA` | Option delta from the bid computation. |
-| `BIDOPTPRICE` | Model option price from the bid computation. |
+| `BIDOPTPRICE` | Option price used in the bid computation. |
 | `BIDPVDIVIDEND` | Present value of dividends from the bid computation. |
 | `BIDGAMMA` | Option gamma from the bid computation. |
 | `BIDVEGA` | Option vega from the bid computation. |
@@ -91,7 +95,7 @@ Request with a contract and a field name, e.g. `=RTD("tws.rtd", , "AAPL", "BID")
 | `ASKTICKATTRIB` | Tick attributes for the ask option-computation snapshot. |
 | `ASKIMPLIEDVOL` | Implied volatility from the ask option computation. |
 | `ASKDELTA` | Option delta from the ask computation. |
-| `ASKOPTPRICE` | Model option price from the ask computation. |
+| `ASKOPTPRICE` | Option price used in the ask computation. |
 | `ASKPVDIVIDEND` | Present value of dividends from the ask computation. |
 | `ASKGAMMA` | Option gamma from the ask computation. |
 | `ASKVEGA` | Option vega from the ask computation. |
@@ -100,7 +104,7 @@ Request with a contract and a field name, e.g. `=RTD("tws.rtd", , "AAPL", "BID")
 | `LASTTICKATTRIB` | Tick attributes for the last option-computation snapshot. |
 | `LASTIMPLIEDVOL` | Implied volatility from the last option computation. |
 | `LASTDELTA` | Option delta from the last computation. |
-| `LASTOPTPRICE` | Model option price from the last computation. |
+| `LASTOPTPRICE` | Option price used in the last computation. |
 | `LASTPVDIVIDEND` | Present value of dividends from the last computation. |
 | `LASTGAMMA` | Option gamma from the last computation. |
 | `LASTVEGA` | Option vega from the last computation. |
@@ -109,7 +113,7 @@ Request with a contract and a field name, e.g. `=RTD("tws.rtd", , "AAPL", "BID")
 | `MODELTICKATTRIB` | Tick attributes for the model option-computation snapshot. |
 | `MODELIMPLIEDVOL` | Implied volatility from the model option computation. |
 | `MODELDELTA` | Option delta from the model computation. |
-| `MODELOPTPRICE` | Model option price from the model computation. |
+| `MODELOPTPRICE` | Option price used in the model computation. |
 | `MODELPVDIVIDEND` | Present value of dividends from the model computation. |
 | `MODELGAMMA` | Option gamma from the model computation. |
 | `MODELVEGA` | Option vega from the model computation. |
@@ -143,7 +147,7 @@ Request with a contract and a field name, e.g. `=RTD("tws.rtd", , "AAPL", "BID")
 | `TRADERATE` | Trades per minute. |
 | `VOLUMERATE` | Volume per minute. |
 | `LASTRTHTRADE` | Last regular-trading-hours trade price. |
-| `IBDIVIDENDS` | IB dividend estimates. |
+| `IBDIVIDENDS` | IBKR dividend estimates. |
 | `BONDMULTIPLIER` | Bond multiplier. |
 | `AVGVOLUME` | Average daily volume. |
 | `WEEK13HI` | 13-week high. |
@@ -177,56 +181,75 @@ Request with a contract and a field name, e.g. `=RTD("tws.rtd", , "AAPL", "BID")
 | `DELAYEDVOLUME` | Delayed cumulative volume. |
 | `DELAYEDCLOSE` | Delayed previous close. |
 | `DELAYEDOPEN` | Delayed session open. |
-| `DELAYEDLASTTIMESTAMP` | Delayed last-trade timestamp. |
+| `DELAYEDLASTTIMESTAMP` | Delayed last-trade timestamp, in the same Unix epoch seconds as `LASTTIME`. |
 | `DELAYEDHALTED` | Delayed halt indicator. |
 
 ### Disconnect behavior (the #N/A class)
 
 On a TWS disconnect, market-data cells follow one of three rules, keyed off the CONFIGURED market-data tier (`TWS_RTD_MARKET_DATA_TYPE`), not the per-request served tier.
 
-- **Quote family → #N/A in every tier.** A standing bid/ask dies with the session that carried it, so every quote cell fails loud on disconnect regardless of tier: `ASK`, `ASKEXCH`, `ASKSIZE`, `BID`, `BIDEXCH`, `BIDSIZE`, `DELAYEDASK`, `DELAYEDASKSIZE`, `DELAYEDBID`, `DELAYEDBIDSIZE`, `ODDLOTASK`, `ODDLOTASKEXCH`, `ODDLOTASKSIZE`, `ODDLOTBID`, `ODDLOTBIDEXCH`, `ODDLOTBIDSIZE`.
-- **`LAST` / `DELAYEDLAST` → tier-dependent.** Under the Realtime (1) and Delayed (3) tiers a stale last reads `#N/A` (you did not opt into last-known values); under the Frozen (2) and DelayedFrozen (4) tiers it keeps its last-seen value (frozen tiers are the explicit opt-in to last-known values).
-- **Everything else → keep-last.** CLOSE, MARKETPRICE, LASTORCLOSE, VOLUME, the option greeks, and the last-trade attributes (LASTSIZE / LASTEXCH / LASTTIME) keep their last value regardless of tier — they are facts about a completed trade, not standing-quote state.
+- Quote family → #N/A in every tier. A standing bid/ask dies with the session that carried it, so every quote cell fails loud on disconnect regardless of tier: `ASK`, `ASKEXCH`, `ASKSIZE`, `BID`, `BIDEXCH`, `BIDSIZE`, `DELAYEDASK`, `DELAYEDASKSIZE`, `DELAYEDBID`, `DELAYEDBIDSIZE`, `ODDLOTASK`, `ODDLOTASKEXCH`, `ODDLOTASKSIZE`, `ODDLOTBID`, `ODDLOTBIDEXCH`, `ODDLOTBIDSIZE`.
+- `LAST` / `DELAYEDLAST` → tier-dependent. Under the real-time (1) and delayed (3) tiers a stale last reads `#N/A` (you did not opt into last-known values); under the frozen (2) and delayed-frozen (4, the default) tiers it keeps its last-seen value (frozen tiers are the explicit opt-in to last-known values).
+- Everything else → keep-last. CLOSE, MARKETPRICE, LASTORCLOSE, VOLUME, the option greeks, and the last-trade attributes (LASTSIZE / LASTEXCH / LASTTIME) keep their last value regardless of tier — they are facts about a completed trade, not standing-quote state.
+
+A TWS data-connectivity loss (error 1100) is stronger: every market-data cell goes `#N/A`, including the keep-last families, until connectivity returns.
 
 ## 3. Contract specification keys
 
-Contracts can be given as a simple ticker (`AAPL`), a slash form (`AAPL@SMART/STK/USD`), a pipe form (`SPY|OPT|20251219|C|450`), an FX pair (`EUR.USD/CASH`), or explicit `key=value` tokens. The canonical keys and their accepted aliases are below (case-insensitive). See the guide for worked examples of each form.
+Contracts can be given as a simple ticker (`AAPL`), a slash form (`AAPL@SMART/STK/USD`), a pipe form (`SPY|OPT|20251219|C|450`), an FX pair (`EUR.USD/CASH`), or explicit `key=value` arguments. The canonical keys and their accepted aliases are below (case-insensitive). Worked examples of the common forms are in [manual.md](manual.md).
+
+**One key per argument, or every key in one argument.** The keys below can be written as separate RTD arguments (`"sym=SPY", "sec=OPT", …`) or joined into a SINGLE argument with semicolons (`"sym=SPY;sec=OPT;strike=680;right=C;exp=20261218"`); market-data and option-definition formulas parse the two identically. The `position` topic accepts ONLY the joined form — it reads one argument as the contract and the next as the field, so a second `key=value` argument fails loud as an unsupported position field. `StageOrder` accepts ONLY the separate-argument form: it does not split on `;`, so a joined token is read as one key whose value swallows the rest.
 
 | Canonical key | Aliases | Description |
 | --- | --- | --- |
 | `symbol` | `sym` | Underlying symbol. |
-| `sectype` | `sec`, `securitytype` | Security type (STK, OPT, FUT, FOP, CASH, IND, …). |
-| `exchange` | `exch` | Routing exchange (SMART for the universal router). |
-| `primaryexch` | `prim`, `primary`, `primaryexchange`, `primexch` | Primary listing exchange (disambiguates SMART-routed symbols). |
+| `sectype` | `sec`, `securitytype` | Security type (`STK`, `OPT`, `FUT`, `FOP`, `CASH`, `IND`, …). |
+| `exchange` | `exch` | Routing exchange (`SMART` for the universal router). |
+| `primaryexch` | `prim`, `primary`, `primaryexchange`, `primexch` | Primary listing exchange (disambiguates `SMART`-routed symbols). |
 | `currency` | `cur`, `curr` | Trading currency. |
 | `expiry` | `exp`, `expiration`, `lasttradedate` | Expiration date (YYYYMM or YYYYMMDD) for options/futures. |
 | `strike` | `strikeprice` | Option strike price. |
-| `right` | `optiontype`, `putcall` | Option right: C (call) or P (put). |
+| `right` | `optiontype`, `putcall` | Option right: `C` (call) or `P` (put). |
 | `multiplier` | `mult` | Contract multiplier. |
 | `localsymbol` | `loc`, `local` | Exchange-specific local symbol. |
-| `tradingclass` | `class`, `tc` | Trading class. |
-| `conid` | `contractid` | TWS contract id (authoritative when present). |
+| `tradingclass` | `class`, `tc` | Trading class. It identifies a contract; on the option-definition fields of section 8 it does not filter the chain. |
+| `conid` | `contractid` | TWS contract ID (authoritative when present). |
 
-Defaults when a symbol-only request omits them, for market-data and option-definition contract parsing: security type `STK`, exchange `SMART`, currency `USD`. A position-topic contract defaults the same security type and currency but deliberately leaves the exchange UNCONSTRAINED (blank), so a symbol-only spec matches the position on whatever exchange TWS reports rather than being pinned to `SMART`. When a `conid` is supplied the security type / exchange / currency are left to TWS.
+Defaults when a symbol-only request omits them, for market-data and option-definition contract parsing: security type `STK`, exchange `SMART`, currency `USD`. A position-topic contract defaults the same security type and currency but deliberately leaves the exchange UNCONSTRAINED (blank), so a symbol-only spec matches the position on whatever exchange TWS reports rather than being pinned to `SMART`. When a `conid` is supplied the security type and currency are left to TWS; the exchange still defaults to `SMART` unless the spec supplies `exch` or a `localsymbol`.
+
+**Every key you write must carry a value.** A key with nothing after the `=` — the shape `"cur="&B2` produces when `B2` is blank — fails loud rather than falling back to the default above or discarding a value the ticker shorthand supplied. The same applies to an empty segment of the compact form (`"BHP@ASX/STK/"&B2`, `"BHP@"&B2`, `"EUR."&B2&"/CASH"`) and to the four extension arguments below. OMITTING a key is always legal; writing it and leaving it empty is not, because an omitted key and an empty one describe different instruments and StreamXLS will not guess which was meant. Build optional arguments with `IF` so they collapse to nothing when the cell is blank (`IF(B2="","","cur="&B2)`) — that idiom leaves a BLANK argument behind, which is dropped so long as the formula names its field (section 2). Two exceptions: the PIPE form's segments are positional, so an empty segment is how that notation spells "omitted" (`SPY||||` is the plain stock) — its symbol position is required, and so is its SECURITY-TYPE position whenever a LATER segment is filled in, because an empty security type is read as `STK` and `ES||202612` would otherwise ask for a STOCK carrying a futures expiry; and `StageOrder`'s ORDER keys (section 4) keep reading a blank as "not supplied", while its CONTRACT keys, `exch=` included, follow the rule — except `sym=`/`symbol=`, which are read on that order-key path, so a blank one reads as "not supplied" there: with no `conid=` the order then fails loud for a missing symbol, and with one the `conid` is authoritative anyway. The failure arrives as error text in the cell rather than an Excel error value, so `IFERROR`/`IFNA` will not hide it.
+
+### Combo and extension arguments
+
+Four further arguments extend a MARKET-DATA request beyond the contract keys above. Each is written `key=value` like the rest and carries its own punctuation inside the value, and each must carry a value (above). `cmb=` is a LIST, so every leg position written must carry a leg: a stray or doubled `;` from a blank cell fails loud rather than quoting a spread with a leg missing, and each leg's four fields (`conId#ratio#action#exchange`) must each carry a value — a blank venue cell fails loud rather than shipping a leg with no exchange, since the leg's venue is part of which price the combo reflects. `StageOrder` accepts none of these arguments — an unrecognized key there fails loud (section 4).
+
+| Argument | Description |
+| --- | --- |
+| `cmb=` | Legs of a combo (multi-leg) contract, for a `sec=BAG` request: one `conId#ratio#action#exchange` leg per leg, semicolon-separated between legs. Leg actions are `BUY`/`B`, `SELL`/`S`, or `SSHORT`/`SS`, case-insensitive; an unrecognized action fails loud instead of assuming a side. The argument is passed through whole — it is never split on its own semicolons. `combo=` is an accepted spelling. Combos are quotable, not stageable (section 4). |
+| `und=` | Delta-neutral hedge contract for a combo request: `conId#delta#price`. All three parts are required, and a malformed one fails loud. |
+| `opt=` | TWS request options, passed through verbatim with the market-data request as `tag#value` pairs, semicolon-separated between pairs. No StreamXLS behavior is attached to them — omit this argument unless you have been given a specific option to send. |
+| `genticks=` | Explicit TWS generic-tick list for the request, comma-separated tick IDs. When it is omitted, StreamXLS sends a default list chosen by security type — the list that carries the section-2 generic-tick fields. When it is supplied, it REPLACES that default, so any generic-tick field whose tick is left out stops updating. |
 
 ## 4. StageOrder write keys
 
-`=RTD("tws.rtd", , "StageOrder", "symbol=AAPL", "action=BUY", "quantity=100", "type=LMT", "limit=150")` stages an order in TWS. Every key is `key=value`. An unrecognized `key=value` token fails loud (a dropped key could stage an order you did not describe); a token that follows the StageOrder token but contains no `=` — anything other than a connection token — is currently IGNORED rather than rejected, so always write `key=value`. The recognized keys, grouped by the logical field they set:
+`=RTD("tws.rtd", , "StageOrder", "sym=AAPL", "side=BUY", "shares=100", "type=LMT", "limit=150")` stages an order in TWS. Every key is `key=value`. An unrecognized `key=value` argument fails loud (a dropped key could stage an order you did not describe); an argument that follows the StageOrder argument but contains no `=` — anything other than a connection argument — fails loud too rather than being silently dropped, so write every argument as `key=value`. The recognized keys, grouped by the logical field they set:
 
 | Keys | Description |
 | --- | --- |
 | `symbol`, `sym` | Underlying symbol (required). |
 | `action`, `side` | BUY or SELL (required). |
 | `quantity`, `shares`, `qty`, `size` | Order quantity, integer > 0 (required). |
-| `type` | Order type, required; passed to TWS uppercased (e.g. LMT, MKT, STP, STP LMT, TRAIL, TRAIL LIMIT). Not an engine whitelist: LMT/STP LMT require limit and the stop/trailing keys constrain the stop family, but an unlisted type is TWS's to accept or reject. |
-| `limit` | Limit price (required for LMT and STP LMT). |
+| `type` | Order type, required; passed to TWS uppercased (e.g. LMT, MKT, STP, STP LMT, TRAIL, TRAIL LIMIT). Internal whitespace is collapsed, so a doubled space between STP and LMT (a concatenation artifact) is read and sent as `STP LMT` instead of slipping past the type-dependent rules. Not an engine whitelist: LMT/STP LMT require limit and the stop/trailing keys constrain the stop family, but an unlisted type is TWS's to accept or reject. One exception: a short list of near-miss spellings of the modelled types — `LIMIT`, `MARKET`, `STOP`, `STPLMT`, `TRAILING`, `TRAILLIMIT` and their spaced variants — fails loud and names the modelled spelling to write instead. Whether or not TWS would accept the near-miss, StreamXLS matches the type-dependent rules on the exact spellings above, so a near-miss would silently switch those price rules OFF. |
+| `limit` | Limit price. Required for LMT and STP LMT, and on every type it must be a finite number greater than zero. Rejected loud on the types that cannot carry one (MKT, STP, TRAIL, MOC, MIT, MTL), where TWS would ignore it and stage an order at no price you named. |
 | `stop`, `aux`, `stopprice` | Stop / auxiliary trigger price (STP, STP LMT, TRAIL, TRAIL LIMIT). |
 | `trailingpercent` | Trailing percent (TRAIL, TRAIL LIMIT). |
+| `trailstop`, `trailstopprice` | Initial trailing TRIGGER price, decimal > 0 (TRAIL, TRAIL LIMIT). REQUIRED for TRAIL LIMIT — TWS rejects a TRAIL LIMIT that has none, answering "Please enter a stop price". Optional for TRAIL, which TWS accepts without one. |
+| `limitoffset`, `lmtoffset` | Distance from the trailing trigger to the limit price, any finite decimal (TRAIL LIMIT only; zero and negative offsets are accepted and passed through — their meaning is defined by TWS). Mutually exclusive with `limit`: TRAIL LIMIT requires EXACTLY ONE of the two, and supplying both is rejected by TWS itself ("You must specify one value: limit price or limit price offset value"). Use `limit=` when you want the limit at an exact price. |
 | `exchange`, `exch` | Routing exchange (defaults to SMART). |
-| `account` | IB account to stage into. |
+| `account` | IBKR account to stage into. |
 | `fagroup` | Financial-advisor allocation group. |
 | `algostrategy`, `algo` | Algo strategy name. |
-| `algoparams` | Algo parameters as pipe-delimited tag=value pairs. |
+| `algoparams` | Algo parameters as pipe-delimited tag=value pairs. Requires `algo=`: the parameters attach to the algo strategy, so without one the whole list would be dropped at staging. The pipe is the only separator — a `,` or `;` inside the value, a segment with no `=`, an empty value, or a repeated tag each fail loud rather than shipping a truncated or corrupted parameter. |
 | `tif` | Time in force (see grammars). |
 | `outsiderth` | Allow fills outside regular trading hours (boolean). |
 | `goodtilldate`, `gtd` | Good-till date/time (required with tif=GTD). |
@@ -237,12 +260,12 @@ Defaults when a symbol-only request omits them, for market-data and option-defin
 | `minqty` | Minimum fill quantity (integer > 0). |
 | `ocagroup` | One-cancels-all group name (with ocatype). |
 | `ocatype` | One-cancels-all type (with ocagroup; see grammars). |
-| `park`, `parked`, `saved` | park=true stages an invisible ticket (Transmit=false) instead of the default deactivated order. |
+| `park`, `parked`, `saved` | park=true stages a local ticket visible only in the parking user's own TWS (Transmit button) instead of the default deactivated order (Submit button), which is visible to all TWS sessions and survives a TWS restart. |
 | `tag`, `nonce`, `seq`, `submit`, `clienttag` | User order tag (composed into OrderRef; see composition). |
 
 ### Synonym groups
 
-Within each group the keys are synonyms — supply at most one; supplying two of the same group fails loud rather than silently dropping a value.
+Within each group the keys are synonyms — supply at most one; supplying two of the same group fails loud rather than silently dropping a value. Supplying the SAME key twice also fails loud, so `side=BUY`,`side=SELL` is rejected rather than silently staging the later value.
 
 - `symbol` = `sym`
 - `action` = `side`
@@ -252,6 +275,8 @@ Within each group the keys are synonyms — supply at most one; supplying two of
 - `tag` = `nonce` = `seq` = `submit` = `clienttag`
 - `park` = `parked` = `saved`
 - `stop` = `aux` = `stopprice`
+- `trailstop` = `trailstopprice`
+- `limitoffset` = `lmtoffset`
 - `goodtilldate` = `gtd`
 - `goodaftertime` = `gat`
 - `display` = `displaysize`
@@ -259,24 +284,39 @@ Within each group the keys are synonyms — supply at most one; supplying two of
 
 ### Value grammars
 
-- **Booleans** (`park`, `outsiderth`, `hidden`, `allornone`): `TRUE`/`1`/`YES` or `FALSE`/`0`/`NO`; anything else fails loud.
-- **Time-in-force** (`tif`): one of `DAY`, `GTC`, `IOC`, `FOK`, `OPG`, `GTD`. `GTD` requires `goodtilldate`, and `goodtilldate` requires `tif=GTD`.
-- **OCA type** (`ocatype`): `1`, `2`, `3` (1 = cancel remaining with block, 2 = reduce remaining with block, 3 = reduce remaining without block); `ocagroup` and `ocatype` are required together.
-- **Date/time** (`goodtilldate`, `goodaftertime`): `YYYYMMDD [HH:MM:SS [TZ]]`, validated as a real calendar date/time.
-- **Prices** (`limit`, `stop`): `limit` is required and must be `> 0` for `LMT` and `STP LMT`; `stop` (aliases `aux` / `stopprice`), when supplied, must be a finite decimal `> 0`. `STP` and `STP LMT` REQUIRE `stop`; `stop` is accepted only for `STP`, `STP LMT`, `TRAIL`, `TRAIL LIMIT`.
-- **Trailing** (`trailingpercent`): when supplied, a finite decimal in `(0, 100]`; accepted only for `TRAIL` / `TRAIL LIMIT`. `TRAIL` requires EXACTLY ONE of `stop` (the trailing amount) or `trailingpercent`.
+- Booleans (`park`, `outsiderth`, `hidden`, `allornone`): `TRUE`/`1`/`YES` or `FALSE`/`0`/`NO`; anything else fails loud.
+- Time-in-force (`tif`): one of `DAY`, `GTC`, `IOC`, `FOK`, `OPG`, `GTD`. `GTD` requires `goodtilldate`, and `goodtilldate` requires `tif=GTD`.
+- OCA type (`ocatype`): `1`, `2`, `3` (1 = cancel remaining with block, 2 = reduce remaining with block, 3 = reduce remaining without block); `ocagroup` and `ocatype` are required together.
+- Date/time (`goodtilldate`, `goodaftertime`): `YYYYMMDD [HH:MM:SS [TZ]]`, validated as a real calendar date/time.
+- Prices (`limit`, `stop`): `limit`, when supplied, must be a finite decimal `> 0` WHATEVER the order type, and `LMT` / `STP LMT` REQUIRE it; it is refused on the types that cannot carry one (`MKT`, `STP`, `TRAIL`, `MOC`, `MIT`, `MTL`), where TWS would ignore the price and stage an order at none you named. `stop` (aliases `aux` / `stopprice`), when supplied, must be a finite decimal `> 0`. `STP` and `STP LMT` REQUIRE `stop`; `stop` is accepted only for `STP`, `STP LMT`, `TRAIL`, `TRAIL LIMIT`.
+- Trailing (`trailingpercent`): when supplied, a finite decimal in `(0, 100]`; accepted only for `TRAIL` / `TRAIL LIMIT`. `TRAIL` and `TRAIL LIMIT` each require EXACTLY ONE of `stop` (the trailing amount) or `trailingpercent`.
+- Trailing trigger and limit offset (`trailstop`, `limitoffset`): `trailstop` (alias `trailstopprice`) is a finite decimal `> 0` and is accepted only for `TRAIL` / `TRAIL LIMIT`; `limitoffset` (alias `lmtoffset`) is any finite decimal (zero and negative offsets are accepted by TWS and pass through verbatim) and is accepted only for `TRAIL LIMIT`. `TRAIL LIMIT` REQUIRES `trailstop` and EXACTLY ONE of `limit` or `limitoffset` — TWS rejects the order outright without a trigger price, and rejects a limit price and a limit offset supplied together.
+
+### Contract keys
+
+StageOrder accepts the full single-leg contract vocabulary: the section-3 contract keys (`sec`, `cur`, `exp`, `strike`, `right`, `mult`, `loc`, `tc`, `prim`) plus `conid`, resolved through the same contract-key aliases documented in section 3. When omitted, security type defaults to `STK` and currency to `USD`. Every order/contract key must appear AFTER the `StageOrder` argument (a key placed before it fails loud), and a contract key supplied with an empty value fails loud rather than silently defaulting.
+
+- `conid`: integer > 0. Identifies the contract by itself — supplying `sym` or any other contract descriptor alongside it fails loud; only `exchange` may accompany `conid`.
+- `sec`: one of `STK`, `OPT`, `FUT`, `FOP`, `CASH`, `IND`, `CFD`, `BOND`, `FUND`, `CMDTY`, `WAR`. `BAG` (combo) is rejected. `OPT`/`FOP` require `exp`, `strike`, and `right` (or a `loc` that resolves them), and so does `WAR` (a warrant is named the same way an option is — IBKR's own warrant contract carries an expiry, a strike and a right); `FUT` requires `exp` (or `loc`); `exp` is accepted for `OPT`/`FOP`/`FUT`/`WAR`; `strike` and `right` for `OPT`/`FOP`/`WAR` only. `BOND` must be named by a security identifier: write the CUSIP or ISIN as `sym` (this is how IBKR identifies a bond), or supply `loc`, or `conid` alone. An issuer's ticker in `sym` matches every bond that issuer has outstanding and is rejected, so an order can never be staged against a bond TWS picked rather than the one you named. One caveat on `WAR`: the expiry/strike/right quad narrows a warrant but does not always single one out — several issuers can list warrants with the same terms on the same venue — so use `loc` or `conid` when you need certainty about WHICH warrant.
+- `cur`: 3-letter currency code.
+- `exp`: `YYYYMM` or `YYYYMMDD`, validated as a real calendar date.
+- `strike`: decimal > 0 (invariant parse — a comma decimal fails loud).
+- `right`: `C`/`CALL` or `P`/`PUT` (normalized to `C`/`P`).
+- `mult`: decimal > 0 (fractional ratios are ordinary on warrants — IBKR's own warrant example carries a multiplier of 0.01).
+- `loc` / `tc`: free text, preserved verbatim (case- and space-significant on TWS).
+- `prim`: primary listing exchange (upper-cased).
 
 ### Capability boundary
 
-*(authored — code-verified at review.)* StageOrder handles US-stock, USD, single-leg orders only (`STK`/`USD` are hardcoded); `sec`/`cur`/`exp`/`strike`/`right`/`conid` and combo staging are not accepted. There is no cancel or replace verb from a formula: a staged order is placed in TWS with auto-transmit suppressed and reaches the market only when a human transmits it there; all subsequent modification, cancellation, and transmission happen in TWS. By default the order is staged deactivated (visible in TWS order lists, survives a TWS restart); `park=true` stages it as an invisible order-entry ticket instead.
+*(authored — code-verified at review.)* StageOrder stages single-leg orders across the full contract vocabulary above, defaulting to `STK`/`USD` only when `sec`/`cur` are omitted. Combo (multi-leg / `sec=BAG`) staging is NOT supported. There is no cancel or replace verb from a formula: a staged order sits in TWS with auto-transmit suppressed and reaches the market only when a human transmits it there; all subsequent modification, cancellation, and transmission happen in TWS. By default the order is staged deactivated (visible in TWS order lists, survives a TWS restart); `park=true` stages it instead as a local order-entry ticket, visible only in the parking user's own TWS.
 
 ### Order reference composition
 
-*(authored.)* The `tag` key (aliases `nonce`, `seq`, `submit`, `clienttag`) is preserved verbatim and tail-composed with an engine identity token into the order's OrderRef as `<tag>|SXLS:<token>` (bare `SXLS:<token>` when no tag). The engine token at the tail is how a whole-day order replay is matched back to the exact cell that placed it; the composed reference is capped at 64 characters and an over-length order fails loud before placement.
+*(authored.)* The `tag` key (aliases `nonce`, `seq`, `submit`, `clienttag`) is preserved verbatim and tail-composed with an engine identity token into the order's OrderRef as `{tag}|SXLS:{token}` (bare `SXLS:{token}` when no tag). The engine token at the tail is how a whole-day order replay is matched back to the exact cell that staged it; the composed reference is capped at 64 characters and an over-length order fails loud before staging.
 
 ## 5. Order read fields
 
-`=RTD("tws.rtd", , "order", "<permId>", "<field>")` reads one field of one order (addressed by permId; the field defaults to STATUS). The vocabulary is a closed set — an unknown field fails loud. Canonical fields:
+`=RTD("tws.rtd", , "order", "{permId}", "{field}")` reads one field of one order (addressed by permId; the field is named, never inferred). The vocabulary is a closed set — an unknown field fails loud. Canonical fields:
 
 | Field | Aliases | Description |
 | --- | --- | --- |
@@ -286,11 +326,11 @@ Within each group the keys are synonyms — supply at most one; supplying two of
 | `AVGFILLPRICE` | — | Average fill price. |
 | `WHYHELD` | — | Reason the order is held, if any. |
 | `WARNINGTEXT` | — | TWS warning text for the order. |
-| `PERMID` | — | Permanent order id (stable across sessions). |
-| `ORDERID` | — | Client order id. |
-| `PARENTID` | — | Parent order id (bracket/child orders). |
-| `CLIENTID` | — | API client id that placed the order. |
-| `ACCOUNT` | — | IB account code. |
+| `PERMID` | — | Permanent order ID (stable across sessions). |
+| `ORDERID` | — | Client order ID. |
+| `PARENTID` | — | Parent order ID (bracket/child orders). |
+| `CLIENTID` | — | API client ID the order originated from. |
+| `ACCOUNT` | — | IBKR account number. #N/A when the order was submitted to an advisor group rather than one account (e.g. the "All" account): TWS sends no account field for an all-accounts order, because it is not attributed to a single account — read `FAGROUP` for the group it was staged to. |
 | `ACTION` | `SIDE` | BUY or SELL. |
 | `QUANTITY` | `TOTALQUANTITY` | Total order quantity. |
 | `ORDERTYPE` | `TYPE` | Order type (LMT, MKT, STP, …). |
@@ -314,7 +354,7 @@ Within each group the keys are synonyms — supply at most one; supplying two of
 | `OPENCLOSE` | — | Open/close indicator. |
 | `ALGOSTRATEGY` | — | Algo strategy name. |
 | `ALGOPARAMS` | — | Algo parameters (semicolon-delimited tag=value). |
-| `ORDREF` | `ORDERREF` | User order tag (engine token un-composed away). |
+| `ORDREF` | `ORDERREF` | Order tag as staged — the engine's identity token is stripped before display. |
 | `MINQTY` | — | Minimum fill quantity. |
 | `PERCENTOFFSET` | — | Percent offset (relative/pegged orders). |
 | `DISCRETIONARYAMT` | — | Discretionary amount. |
@@ -329,7 +369,7 @@ Within each group the keys are synonyms — supply at most one; supplying two of
 | `SOLICITED` | — | Solicited flag. |
 | `WHATIF` | — | What-if (margin preview) flag. |
 | `INCLUDEOVERNIGHT` | — | Include-overnight flag. |
-| `CONID` | — | Contract id. |
+| `CONID` | — | Contract ID. |
 | `SYMBOL` | — | Underlying symbol. |
 | `SECTYPE` | — | Security type. |
 | `EXPIRY` | `LASTTRADEDATE` | Expiration date. |
@@ -365,15 +405,15 @@ Within each group the keys are synonyms — supply at most one; supplying two of
 
 ## 6. Deliberately-unsupported order properties
 
-These IBApi order/contract/order-state properties are intentionally NOT surfaced as read fields. Grouped by the shared reason; the reasons come from the engine's census skip lists.
+Section 5 lists every order field you can read. This section lists the rest — each remaining TWS API order, contract, and order-state property, grouped by the reason it is not offered as a cell. Nothing here was dropped by oversight: the test suite fails if a property in the TWS API is neither published as a field in section 5 nor listed below with a reason. Asking for one of these names in a formula fails loud rather than leaving the cell blank.
 
 ### Unsupported — Order properties
 
-- `Transmit`, `Deactivate`, `PostOnly`, `IgnoreOpenAuction` — Undecoded booleans (engineering review finding): the openOrder decoder never populates these on the legacy binary path (Transmit: on NEITHER path), so a resolver would publish the fabricated ctor default — booleans have no unset sentinel to guard with. Transmit/Deactivate would claim a parked order is transmitted (staging-shape readback must come from our own SendOrder record if ever wanted, not the decoder-reconstructed Order).
+- `Transmit`, `Deactivate`, `PostOnly`, `IgnoreOpenAuction` — Unreported booleans — TWS does not populate these flags on the open-order feed, so a cell could only show a fabricated default rather than the order's real setting, and a boolean has no way to report "unknown". `Transmit` and `Deactivate` would be the worst of it: an order still parked in TWS would read as though it were already working. Check the order in TWS itself.
 - `TriggerMethod`, `OverridePercentageConstraints`, `Rule80A`, `Origin`, `ShortSaleSlot`, `DesignatedLocation`, `ExemptCode`, `OptOutSmartRouting`, `ProfessionalCustomer`, `ExtOperator` — Regulatory / routing / origin — compliance metadata, not a value a user reads back per order.
 - `AuctionStrategy`, `StartingPrice`, `StockRefPrice`, `Delta`, `StockRangeLower`, `StockRangeUpper` — BOX / auction / stock-range price monitoring — niche order-entry modes.
 - `Volatility`, `VolatilityType`, `ContinuousUpdate`, `ReferencePriceType`, `RandomizeSize`, `RandomizePrice` — Volatility / pegged-to-volatility family.
-- `DeltaNeutralOrderType`, `DeltaNeutralAuxPrice`, `DeltaNeutralConId`, `DeltaNeutralSettlingFirm`, `DeltaNeutralClearingAccount`, `DeltaNeutralClearingIntent`, `DeltaNeutralOpenClose`, `DeltaNeutralShortSale`, `DeltaNeutralShortSaleSlot`, `DeltaNeutralDesignatedLocation` — Delta-neutral family (institutional; unclear cell semantics — design ruling: skip and note).
+- `DeltaNeutralOrderType`, `DeltaNeutralAuxPrice`, `DeltaNeutralConId`, `DeltaNeutralSettlingFirm`, `DeltaNeutralClearingAccount`, `DeltaNeutralClearingIntent`, `DeltaNeutralOpenClose`, `DeltaNeutralShortSale`, `DeltaNeutralShortSaleSlot`, `DeltaNeutralDesignatedLocation` — Delta-neutral family — institutional order parameters with no clear per-cell meaning.
 - `BasisPoints`, `BasisPointsType`, `RefFuturesConId` — EFP (exchange-for-physical) family + futures reference.
 - `ScaleInitLevelSize`, `ScaleSubsLevelSize`, `ScalePriceIncrement`, `ScalePriceAdjustValue`, `ScalePriceAdjustInterval`, `ScaleProfitOffset`, `ScaleAutoReset`, `ScaleInitPosition`, `ScaleInitFillQty`, `ScaleRandomPercent`, `ScaleTable` — Scale-order family.
 - `HedgeType`, `HedgeParam`, `HedgeMaxSize`, `DontUseAutoPriceForHedge` — Hedge family.
@@ -383,15 +423,15 @@ These IBApi order/contract/order-state properties are intentionally NOT surfaced
 - `ReferenceContractId`, `IsPeggedChangeAmountDecrease`, `PeggedChangeAmount`, `ReferenceChangeAmount`, `ReferenceExchange` — Pegged-to-benchmark family.
 - `MinTradeQty`, `MinCompeteSize`, `CompeteAgainstBestOffset`, `MidOffsetAtWhole`, `MidOffsetAtHalf` — IBKRATS / pegged-best family.
 - `Conditions`, `ConditionsIgnoreRth`, `ConditionsCancelOrder` — Conditional-order family.
-- `SmartComboRoutingParams`, `OrderComboLegs`, `OrderMiscOptions`, `Tier` — Collection / nested types — not cell-representable (AlgoParams IS surfaced, formatted explicitly).
-- `FaPercentage` — FA allocation percentage; FaGroup/FaMethod are surfaced, this is not.
-- `AlgoId` — algo internal id; AlgoStrategy/AlgoParams carry the useful surface.
+- `SmartComboRoutingParams`, `OrderComboLegs`, `OrderMiscOptions`, `Tier` — Collection / nested types — not cell-representable (AlgoParams IS published as a read field, formatted explicitly).
+- `FaPercentage` — FA allocation percentage; FAGROUP and FAMETHOD are available, this is not.
+- `AlgoId` — internal algo identifier; ALGOSTRATEGY and ALGOPARAMS carry the detail you can read back.
 - `AutoCancelDate` — auto-cancel date; niche order-entry option.
 - `AutoCancelParent` — bracket auto-cancel flag; niche.
-- `FilledQuantity` — openOrder-provided filled; FILLED (from orderStatus) is authoritative — avoid a second, divergent field.
+- `FilledQuantity` — a second filled-quantity value from a different feed; the FILLED read field is the authoritative one, so this duplicate is not offered.
 - `ImbalanceOnly` — imbalance-only auction flag; niche.
 - `RouteMarketableToBbo` — routing flag (bool?); niche.
-- `ParentPermId` — parent's permId; PARENTID (parent orderId) is the surfaced linkage.
+- `ParentPermId` — parent's permId; PARENTID (parent orderId) is the published linkage.
 - `AdvancedErrorOverride` — advanced-reject JSON passthrough; internal.
 - `ManualOrderTime`, `ManualOrderIndicator` — manual-entry metadata.
 - `BondAccruedInterest` — bond-only field.
@@ -417,14 +457,14 @@ These IBApi order/contract/order-state properties are intentionally NOT surfaced
 
 ### Unsupported — Order-state properties
 
-- `Status` — ORDERSTATUS was retired (design review, 2026-07-18): it was refreshed by only one of the engine's update paths, so it could keep reading a stale "Submitted" after an order had actually completed — while STATUS is refreshed by every path and never goes stale that way. A typed ORDERSTATUS now fails loud at parse. The TWS-delivered terminal status string remains available verbatim via COMPLETEDSTATUS.
-- `InitMarginBeforeOutsideRTH`, `MaintMarginBeforeOutsideRTH`, `EquityWithLoanBeforeOutsideRTH`, `InitMarginChangeOutsideRTH`, `MaintMarginChangeOutsideRTH`, `EquityWithLoanChangeOutsideRTH`, `InitMarginAfterOutsideRTH`, `MaintMarginAfterOutsideRTH`, `EquityWithLoanAfterOutsideRTH` — The *OutsideRTH margin doubles: a parallel outside-RTH margin surface; the standard (string) margin fields above are surfaced, these niche doubles are not.
+- `Status` — `ORDERSTATUS` was retired in favor of `STATUS`. Its underlying value is refreshed by only one of the paths that can move an order to a terminal state, so it could keep reading "Submitted" after an order had already filled or been cancelled. `STATUS` is refreshed by every path, including the ones that infer a terminal state. A formula asking for `ORDERSTATUS` fails loud rather than returning a stale value, and the TWS-delivered terminal status string remains available verbatim via `COMPLETEDSTATUS`.
+- `InitMarginBeforeOutsideRTH`, `MaintMarginBeforeOutsideRTH`, `EquityWithLoanBeforeOutsideRTH`, `InitMarginChangeOutsideRTH`, `MaintMarginChangeOutsideRTH`, `EquityWithLoanChangeOutsideRTH`, `InitMarginAfterOutsideRTH`, `MaintMarginAfterOutsideRTH`, `EquityWithLoanAfterOutsideRTH` — outside-regular-hours counterparts of the margin figures above; niche.
 - `SuggestedSize` — whatIf sizing hint; niche.
 - `OrderAllocations` — collection/nested type — not cell-representable.
 
 ## 7. Order status vocabulary
 
-Two surfaces report this vocabulary, and they differ on exactly one point — the cancel spelling. An `order` topic's `STATUS` cell reports TWS's own status string VERBATIM, including the two-L spellings `Cancelled` and `ApiCancelled`. A `StageOrder` cell reports the same names while the order works, but maps a terminal `Cancelled` / `ApiCancelled` from TWS to the house spelling `Canceled` (one L) so formulas written against v1 keep matching. Every other value below is reported unchanged on both surfaces.
+Two kinds of cell report this vocabulary, and they differ on exactly one point — how they handle an API-side cancel. An `order` topic's `STATUS` cell passes TWS's status string through almost unchanged, including the two-L spellings `Cancelled` and `ApiCancelled`. Two values on that cell are engine-supplied rather than TWS-delivered: an order that leaves the open set with nothing left to fill reads `Filled`, and one TWS stops reporting with quantity remaining reads `Cancelled` — both in TWS's own spelling. A `StageOrder` cell reports the same names in TWS's own spelling, with one difference: it collapses a terminal `ApiCancelled` into `Cancelled`, so a staged cell shows a single cancel word. Every other value below reads the same on both.
 
 | Status | Class | Meaning |
 | --- | --- | --- |
@@ -434,18 +474,18 @@ Two surfaces report this vocabulary, and they differ on exactly one point — th
 | `PreSubmitted` | active | Simulated order accepted; election criteria not yet met. |
 | `Submitted` | active | Accepted and working at the destination. |
 | `Filled` | terminal | Completely filled. |
-| `Cancelled` | terminal | Cancellation confirmed. Shown verbatim on an order STATUS cell; a StageOrder cell shows the house spelling Canceled. |
-| `ApiCancelled` | terminal | Cancelled via the API before TWS acknowledged the order. Verbatim on an order STATUS cell; a StageOrder cell maps it to Canceled. |
-| `Inactive` | terminal | Received but no longer active (e.g. rejected). |
-| `Unknown` | sentinel | House parse sentinel for an unrecognized status string — NOT a TWS status. |
+| `Cancelled` | terminal | Cancellation confirmed; a StageOrder cell shows the same word. |
+| `ApiCancelled` | terminal | Cancelled via the API before TWS acknowledged the order; a StageOrder cell collapses it to `Cancelled`. |
+| `Inactive` | transient | Received but not currently active (e.g. rejected, or held at the destination). Not treated as final by StreamXLS; excluded from `OPENLISTCSV`. |
+| `Unknown` | sentinel | StreamXLS's parse sentinel for an unrecognized status string — not a TWS status. |
 
-House staging states a StageOrder cell publishes before TWS speaks: `Sending` (a placement is in flight), `Staged` (placeOrder delivered; the order awaits human transmission in TWS), and `Canceled` (the house spelling a StageOrder cell uses for a terminal cancel, to which it maps TWS's `Cancelled`/`ApiCancelled`; an `order` topic's STATUS cell does NOT remap — it shows `Cancelled`/`ApiCancelled` verbatim). A workbook reopen disarms a StageOrder cell rather than re-staging: it shows a `Disarmed:` message and stages nothing.
+A StageOrder cell publishes its own states before any TWS status arrives: `Sending` (the staging request is in flight), `Staged` (the request reached TWS without error; the order waits there for you to transmit it), and `Cancelled` (the terminal-cancel spelling described above). Reopening a workbook disarms a StageOrder cell rather than re-staging it: the cell shows a `Disarmed:` message and stages nothing. If the TWS order on the cell's order id stops carrying the identity tag StreamXLS stamped at staging (for example, the Order Ref field was edited in TWS), the cell shows an `Order identity unverifiable:` message and stops tracking that order id; check the order in TWS or track it with the orders topics.
 
 ## 8. Position, list, and option-definition fields
 
 ### Position fields
 
-`=RTD("tws.rtd", , "position", "<accounts>", "<contract>", "<field>")` (field defaults to POSITION). Across multiple matched accounts, values aggregate (sizes and P&L sum; average cost is size-weighted; contract-metadata fields return the first matched contract). A PARTIAL contract spec matters: in the aggregate (blank / `*` / CSV-accounts) form it aggregates across EVERY contract it matches, whereas a single-account request does NOT aggregate — it resolves to one matching position, so a partial spec that matches several contracts in that account is ambiguous. Pin a single contract with enough contract detail, or `conid=`, for an unambiguous single-contract read.
+`=RTD("tws.rtd", , "position", "{accounts}", "{contract}", "{field}")` (the field is named, never inferred; `{accounts}` may be blank for all accounts). Across multiple matched accounts, values aggregate (sizes and P&L sum; average cost is weighted by ABSOLUTE size; contract-metadata fields return the matched contract when the spec resolves to a single contract ID, and fail loud with the same `Ambiguous position` error naming the matched contract IDs when it resolves to more than one). A PARTIAL contract spec matters: in the aggregate (blank / `*` / CSV-accounts) form it aggregates across EVERY contract it matches, whereas a single-account request does NOT aggregate — it must resolve to exactly one position. A partial spec that matches several contracts in that account is ambiguous and fails loud (an `Ambiguous position` error naming the matched contract IDs) rather than returning an arbitrary one; the error clears on its own once the ambiguity resolves. Pin a single contract with enough contract detail, or `conid=`, for an unambiguous single-contract read.
 
 | Field | Aliases | Description |
 | --- | --- | --- |
@@ -455,7 +495,7 @@ House staging states a StageOrder cell publishes before TWS speaks: `Sending` (a
 | `DAILYPNL` | `DPNL` | Daily P&L (sums across accounts). |
 | `REALIZEDPNL` | `RPNL` | Realized P&L (sums across accounts). |
 | `UNREALIZEDPNL` | `UPNL` | Unrealized P&L (sums across accounts). |
-| `CONID` | `CONTRACTID` | Contract id. |
+| `CONID` | `CONTRACTID` | Contract ID. |
 | `SYMBOL` | `SYM` | Underlying symbol. |
 | `SECTYPE` | `SEC`, `SECURITYTYPE` | Security type. |
 | `STRIKE` | — | Option strike. |
@@ -470,26 +510,33 @@ House staging states a StageOrder cell publishes before TWS speaks: `Sending` (a
 
 ### Positions-list fields
 
-`=RTD("tws.rtd", , "positions", "<accounts>", "<field>")` returns a list across positions.
+`=RTD("tws.rtd", , "positions", "{accounts}", "{field}")` returns a list across positions.
 
 | Field | Description |
 | --- | --- |
 | `SYMBOLSCSV` | Semicolon-delimited list of position contract specs. |
-| `CONIDCSV` | Semicolon-delimited list of position contract ids; a position that lacks a conid contributes the literal sentinel token `Missing ConID` (appended to the CSV, or standing alone as the whole value when no position has a conid). |
-| `POSITIONSCHANGEDUTC` | UTC timestamp updated when list membership changes (legacy alias `SYMBOLSCHANGEDUTC`); shows the transient value `Requested` while a list publish is pending. |
+| `CONIDCSV` | Semicolon-delimited list of position contract IDs; a position that lacks a conid contributes the literal sentinel token `Missing ConID` (appended to the CSV, or standing alone as the whole value when no position has a conid). |
 
 ### Orders-list fields
 
-`=RTD("tws.rtd", , "orders", "<accounts>", "<field>")` returns a list of order permIds.
+`=RTD("tws.rtd", , "orders", "{accounts}", "{field}")` returns a list of order permIds.
+
+An ACCOUNT-FILTERED list contains only the orders TWS attributes to one of the named accounts. An order submitted to an advisor GROUP rather than a single account (the "All" account, for instance) carries no account attribution on the wire, so it appears in the unfiltered list (blank or `*`) and in no account-filtered one — the same reason `ACCOUNT` reads #N/A for it and `FAGROUP` names the group instead (section 5).
 
 | Field | Description |
 | --- | --- |
 | `LISTCSV` | All orders, including filled/cancelled. |
-| `OPENLISTCSV` | Active orders only (terminal statuses excluded). |
+| `OPENLISTCSV` | Active orders only (terminal statuses and Inactive excluded). |
 
 ### Option-definition fields
 
-Given an underlying contract, these enumerate its option chain.
+Requested like market data — an underlying contract plus a field name, e.g. `=RTD("tws.rtd", , "AAPL", "OPTIONSTRIKESCSV")`. Given an underlying contract, these enumerate its option chain.
+
+**These fields aggregate every trading class TWS lists for the underlying** — weeklies alongside monthlies (`SPX` with `SPXW`) — and they cannot be narrowed to one class. `tc=` does not narrow them: the TWS chain request takes no trading class at all. Neither can the sheet: the returned dates and strikes carry no class marker, so nothing in the CSV says which class listed a given expiry or strike, and `STRIKESTEP` is the minimum increment across the whole aggregate — it can be finer than any single class uses. Treat all three as an answer about the underlying, and name the exact contract you want on the market-data formula that quotes it.
+
+Exchange behaves differently from class. For a stock or index underlying the answer spans every exchange TWS reports. For a `FUT` or `FOP` underlying the chain request carries the spec's `exch=` when one is set — and `SMART` is not a futures routing exchange, so a futures underlying normally needs an explicit `exch=`. A spec that names the contract with `localsymbol` and no `exch=` sends no exchange at all, so that chain spans every exchange TWS reports.
+
+`tc=` is not inert on these fields; it just cannot shorten the chain. When the underlying is named by symbol, the class is still sent while TWS resolves that symbol, so it can decide whether the cell resolves at all: a class that matches nothing fails the cell loud instead of returning a chain, and deleting a `tc=` that was disambiguating a dual-listed symbol gives `Ambiguous underlying`. Keep the `tc=` you need to NAME the underlying. When the underlying is named by `conid=`, the class is dropped entirely: it can neither narrow the chain nor fail the cell, and two cells differing only by `tc=` share one request.
 
 | Field | Description |
 | --- | --- |
@@ -501,30 +548,34 @@ Given an underlying contract, these enumerate its option chain.
 
 ### Status fields
 
-`=RTD("tws.rtd", , "status", "<field>")` reports connection state. These re-resolve on every heartbeat, so an already-subscribed cell tracks live changes.
+`=RTD("tws.rtd", , "status", "{field}")` reports connection state. These re-resolve on every heartbeat, so an already-subscribed cell tracks live changes. That covers the VALUE, not the routing: the connection each status topic reads is chosen once, at first subscription (see [Connection arguments](#connection-arguments)).
+
+Most of these fields answer for one connection. Seven do not — `ACTIVETOPICCOUNT`, `MARKETDATATYPE`, `CONFIGWARNINGS` and the four `UPDATE_*` fields report add-in-wide facts, so they read the same from every connection and a connection argument changes only which connection the cell binds to, never the answer.
 
 | Field | Description |
 | --- | --- |
 | `ISCONNECTED` | 1 when the engine is connected to TWS (as far as it can tell), 0 when definitively not. |
-| `ACTIVETOPICCOUNT` | Number of currently subscribed topics. |
-| `ACCOUNTSCSV` | Comma-separated managed account ids from the connection handshake. |
+| `ACTIVETOPICCOUNT` | How many distinct subscriptions the add-in currently holds. Two formulas that resolve to the same subscription — say `AAPL` and `AAPL@SMART` for the same field — count once between them, and that subscription leaves the count only when the last formula referring to it is gone. Add-in-wide, not per connection, and counted from subscription rather than from data arriving — so it does not fall when TWS disconnects. Status and metadata cells count themselves, and StageOrder is the one exception to sharing: each StageOrder formula is its own submission and counts separately. |
+| `ACCOUNTSCSV` | Comma-separated managed account IDs from the connection handshake. |
 | `LASTUPDATEUTC` | UTC timestamp of the last successful data update. |
-| `SERVERHEARTBEATUTC` | UTC timestamp of the last Excel heartbeat. |
+| `SERVERHEARTBEATUTC` | UTC timestamp of the server's most recent status pass. Excel's heartbeat usually drives it, but engine-side connection events stamp it too, and when the Excel heartbeat is disabled or raised above Excel's floor the server's own cadence takes over — so it measures StreamXLS running, not Excel calling, and never TWS liveness. |
 | `SERVERVERSION` | This connection's negotiated TWS ServerVersion, or 'Not Connected'. |
 | `MARKETDATATYPE` | Configured default market-data tier (1–4); distinct from the per-contract market-data field of the same name. |
 | `MARKETDATASTATE` | Market-data version state: Ok / TooOld / Unknown. |
 | `MARKETDATAMESSAGE` | Actionable message when the negotiated version is too old; empty otherwise. |
 | `ORDERDATASTATE` | Order-subsystem data state (see data-state values). |
-| `LASTORDERLISTCHANGEUTC` | UTC time the order-list membership last changed — across every order the connection's API client sees, regardless of account (an orders-list account filter narrows the rendered CSV, not this stamp). |
-| `LASTORDERUPDATEUTC` | UTC time of the last order update from TWS, for any order on the connection regardless of account (not scoped to the accounts in a given orders-list subscription). |
+| `LASTORDERLISTCHANGEUTC` | UTC time the order-list membership last changed — across every order the connection's API client sees, regardless of account (an orders-list account filter narrows the rendered CSV, not this timestamp). |
+| `LASTORDERUPDATEUTC` | UTC time TWS last delivered order information that actually CHANGED something — a poll that re-delivers identical orders does not advance it. Covers any order on the connection regardless of account (not scoped to the accounts in a given orders-list subscription). To tell "nothing happened" apart from "the order feed stopped", pair it with LASTORDERPOLLUTC. |
+| `LASTORDERPOLLUTC` | UTC time the last complete open-orders response arrived from TWS, whether or not anything changed. Order-feed liveness: it keeps advancing every poll (15s by default) while the feed is healthy and freezes if TWS stops answering, which the change stamps above cannot show. |
 | `POSITIONDATASTATE` | Position-subsystem data state (see data-state values). |
-| `LASTPOSITIONLISTCHANGEUTC` | UTC time the position-list membership last changed. |
-| `LASTPOSITIONUPDATEUTC` | UTC time of the last position update. |
+| `LASTPOSITIONLISTCHANGEUTC` | UTC time the position-list membership last changed — a contract entering or leaving the active set, not a size change or a price tick. Connection-wide (never scoped to one cell's account filter), and it advances only while position topics keep position data flowing. |
+| `LASTPOSITIONUPDATEUTC` | UTC time of the last accepted position callback. Freshness, not change: unlike LASTORDERUPDATEUTC it advances even when the delivered values are identical. |
 | `CONFIGWARNINGS` | Configuration-validation warnings, joined; empty when the configuration is clean. |
-| `ROTATIONCOUNT` | Lifetime automatic client-id rotations on this connection. |
-| `UPDATE_AVAILABLE` | '1' when a newer release is available, else '0' (live breadcrumb). |
+| `CONNECTIONKEY` | Which TWS *this* cell is actually reading, as `host:port:clientId`. It exists because a status formula carrying no connection argument can bind to a connection you never named — it piggybacks the sole connection when there is exactly one, and otherwise takes the default (see [Connection arguments](#connection-arguments)) — and that choice is frozen at first subscription. Binding is per formula, not per sheet, so give this field the same connection argument as the cells you are checking. The client ID tracks automatic rotations; the host and port cannot change under a subscribed cell. This is a report, not a connection argument: an automatically assigned client ID is not part of the connection's identity, so pasting the value back into a formula names a DIFFERENT connection. `#N/A` means the binding could not be determined. |
+| `ROTATIONCOUNT` | Lifetime automatic client-ID rotations on this connection. |
+| `UPDATE_AVAILABLE` | '1' when a newer release is available, else '0' (re-checked live). |
 | `UPDATE_CRITICAL` | '1' when the available update is critical, else '0'. |
-| `UPDATE_LATEST_VERSION` | Latest available version from the update breadcrumb. |
+| `UPDATE_LATEST_VERSION` | Latest available version from the update check. |
 | `UPDATE_MESSAGE` | Engine-composed update guidance message. |
 
 ### Data-state values
@@ -533,7 +584,7 @@ Given an underlying contract, these enumerate its option chain.
 
 ### Metadata fields
 
-Addressed by bare name (`=RTD("tws.rtd", , "VERSION")`). A metadata cell resolves once, when it is first subscribed. The `LICENSE_*` fields are the one exception: they re-resolve around the initial verification window (the non-blocking first evaluation), so a cell subscribed while entitlement was still verifying repaints once the definitive state lands. A license change LATER in the session does NOT repaint an already-subscribed metadata cell — it shows on re-entry or workbook reopen. `TWSAPI_*` (and the build / `UPDATE_*` fields) resolve once at subscription and do not re-resolve. For a live-tracking view of the update breadcrumb, use the `UPDATE_*` status fields above, which re-resolve every heartbeat.
+Addressed by bare name (`=RTD("tws.rtd", , "VERSION")`). A metadata cell resolves once, when it is first subscribed. The `LICENSE_*` fields are the one exception: they re-resolve around the initial verification window (the non-blocking first evaluation), so a cell subscribed while entitlement was still verifying repaints once the definitive state lands. `LICENSE_*` and `TWSAPI_*` also repaint mid-session, without re-entry, when what they report changes — a trial running out, a subscription lapsing, an activation, or an installed TWS API that turns out to be incompatible when a connection is attempted. That re-verification is deliberately infrequent (about every 6 hours while the license grants data, about every 10 minutes once it does not), so a license changed elsewhere normally reaches the cell at the next check rather than promptly. The installed TWS API itself is inspected once per Excel session, so installing or upgrading it takes effect on the next Excel restart. The build and `UPDATE_*` metadata fields resolve once at subscription and do not re-resolve. For a live-tracking view of update availability, use the `UPDATE_*` status fields above, which re-resolve every heartbeat.
 
 | Field | Description |
 | --- | --- |
@@ -548,14 +599,14 @@ Addressed by bare name (`=RTD("tws.rtd", , "VERSION")`). A metadata cell resolve
 | `TWSAPI_STATE` | TWS-API binding state. |
 | `TWSAPI_MESSAGE` | TWS-API binding message (actionable guidance). |
 | `TWSAPI_VERSION` | Detected TWS-API version. |
-| `UPDATE_AVAILABLE` | Update-available breadcrumb flag ('0'/'1'), resolved once at subscription. |
-| `UPDATE_CRITICAL` | Update-critical breadcrumb flag ('0'/'1'). |
-| `UPDATE_LATEST_VERSION` | Latest available version from the update breadcrumb. |
-| `UPDATE_MESSAGE` | Update guidance message from the breadcrumb. |
+| `UPDATE_AVAILABLE` | Update-available flag ('0'/'1'), resolved once at subscription. |
+| `UPDATE_CRITICAL` | Update-critical flag ('0'/'1'). |
+| `UPDATE_LATEST_VERSION` | Latest available version from the update check. |
+| `UPDATE_MESSAGE` | Update guidance message from the update check. |
 
 ## 10. Account value keys
 
-*(authored — the key set is a pass-through.)* `=RTD("tws.rtd", , "account", "<account>", "<key>")` returns any account value TWS delivers for the account; keys are case- and separator-insensitive and are NOT a fixed list. Common keys:
+*(authored — the key set is a pass-through.)* `=RTD("tws.rtd", , "account", "{account}", "{key}")` returns any account value TWS delivers for the account; keys are case-insensitive and ignore spaces and underscores (other punctuation is significant), and are NOT a fixed list. Common keys:
 
 | Key | Description |
 | --- | --- |
@@ -569,38 +620,51 @@ Addressed by bare name (`=RTD("tws.rtd", , "VERSION")`). A metadata cell resolve
 | `INITMARGINREQ` | Initial margin requirement. |
 | `MAINTMARGINREQ` | Maintenance margin requirement. |
 
-Engine-computed additions: `OPENPOSITIONCOUNT` (count of non-zero positions), `DAILYPNL`, `REALIZEDPNL`, and `UNREALIZEDPNL` (from the P&L feed).
+Engine-computed additions: `OPENPOSITIONCOUNT` (count of positions with a non-zero size or market value), `DAILYPNL`, `REALIZEDPNL`, and `UNREALIZEDPNL` (from the P&L feed).
 
-**Per-currency values.** Append a currency code as a trailing token to request the per-currency breakdown (e.g. account, key, then `EUR`). Per-currency values require the TWS setting *Global Config > API > Settings > 'Prepend $LEDGER- prefix to per-currency account values'* to be enabled; while it is disabled, affected cells fail loud with: `#LEDGER-DISABLED — enable TWS Global Config > API > Settings > 'Prepend $LEDGER- prefix to per-currency account values' (affects all API clients on this TWS), then reconnect`. While the setting is disabled the sentinel ALSO poisons the affected BARE (non-currency-suffixed) dual-class keys — the aggregates TWS delivers in both an account-level and a per-currency category (CashBalance, AccruedCash, RealizedPnL, UnrealizedPnL, StockMarketValue, and the other dual-class values). Without the prefix the engine cannot tell an account-level aggregate from a currency row, so those bare aggregates are ambiguous and fail loud too. Bare non-dual-class keys (e.g. NetLiquidation) are unaffected.
+**Per-currency values.** Append a currency code as a trailing argument to request the per-currency breakdown (e.g. account, key, then `EUR`). Per-currency values require the TWS setting *Global Config > API > Settings > 'Use "$LEDGER-" prefix for per-currency keys.'* to be enabled; while it is disabled, affected cells fail loud with: `#LEDGER-DISABLED — enable TWS Global Config > API > Settings > 'Use "$LEDGER-" prefix for per-currency keys.'`. While the setting is disabled the sentinel ALSO poisons the affected BARE (non-currency-suffixed) dual-class keys — the aggregates TWS delivers in both an account-level and a per-currency category (CashBalance, AccruedCash, RealizedPnL, UnrealizedPnL, StockMarketValue, and the other dual-class values). Without the prefix the engine cannot tell an account-level aggregate from a currency row, so those bare aggregates are ambiguous and fail loud too. Bare non-dual-class keys (e.g. NetLiquidation) are unaffected.
 
-The demo workbook enumerates the full TWS-delivered account key set: `../examples/StreamXLS.xlsm`.
+**Keys TWS reports only per currency.** With the prefix setting enabled, TWS reports a set of keys ONLY inside the per-currency ledger and publishes no account-wide value for them — `AccountOrGroup` (which `AccountName` maps to), `Currency`, `RealCurrency`, `ExchangeRate`, `CashBalance`, `TotalCashBalance`, `NetLiquidationByCurrency`, `StockMarketValue`, `OptionMarketValue`, `FxCashBalance`, and the other per-currency balances. Asked for WITH a currency, such a key returns that currency's row (or `#N/A` if the account holds nothing in it). Asked for WITHOUT one, what you get depends on the account:
+
+- **One currency for that key** — the value. With a single currency there is nothing to aggregate, so that currency's figure is the account's. A currency sitting at exactly ZERO does not count as a second one (it adds nothing at any exchange rate), so an account that has zeroed out its other currencies keeps showing the value.
+- **Several currencies, one identical value in each** — that value. Keys like `AccountOrGroup` are a property OF the account rather than a balance IN a currency, so TWS repeats them verbatim in every currency row and the answer is unambiguous. Only non-numeric values qualify: several currencies agreeing on a NUMBER is not evidence (three rows of 5 does not make the account's figure 5), so a numeric key takes the message below.
+- **`Currency` and `RealCurrency`, several currencies that disagree** — the account's currency codes as TEXT, comma-separated and ascending with no spaces, e.g. `EUR,USD` (`TEXTSPLIT`-able). These two keys report a currency IDENTITY rather than an amount held in one, so where a single-currency account answers with that one ledger's code, a multi-currency account answers with the set — asking you to pick one would send you round a loop. Two caveats. A currency whose balance has gone to ZERO still has a ledger, so it is still listed here even though the money keys above have stopped counting it; and StreamXLS publishes the list only when TWS's own ledger confirms it (every currency's row names that currency, and the key is present in every one of the account's currency ledgers). When it does not, the cell falls back to the message below rather than show a list that might be short or wrong.
+- **Several currencies with different values** (any other key) — an actionable message naming the currencies that ARE available and asking you to add one, e.g. `RTD error: CASHBALANCE is reported per currency on this account; specify one to get its value — available: EUR, USD (e.g. "cur=EUR")`. StreamXLS never adds balances across currencies — a cross-currency total needs an exchange rate TWS did not send, so inventing one would put a fabricated number in your cell. Like other formula-fix messages, this text appears even under `TWS_RTD_ERROR_DISPLAY=NA`. The message re-renders as the currency set changes, and becomes a value if the account ends up with one currency for that key.
+- **Not resolvable yet** — `#N/A`. These cells stay `#N/A` until TWS signals that it has finished sending the account, because mid-download a multi-currency account is indistinguishable from a single-currency one and showing one currency's figure as the account's would be worse than showing nothing. The same applies again after a reconnection or a TWS connectivity blip until the account has been re-sent.
+
+All of the above describes a connection with the `$LEDGER-` setting ENABLED, which is the only regime in which the engine can tell a per-currency row from an account-level one. With the setting DISABLED these keys arrive indistinguishable from account level, so they take the disabled-state rules in the previous paragraph instead (the sentinel for the dual-class ones; `#N/A` for a bare key whose rows collide under two or more currency tags). Enable it and reconnect.
+
+The demo workbook enumerates the full TWS-delivered account key set — open it from the Start menu (*StreamXLS demo workbook*); a copy ships in this repository at `../examples/StreamXLS.xlsm`.
 
 ## 11. Configuration keys
 
-Configuration is read from environment variables, then a config file (`%LOCALAPPDATA%\StreamXLS\config.json`), then code defaults — environment wins. A malformed (non-numeric) value warns and falls back to the default. An out-of-range INTEGER is CLAMPED to the nearest in-range bound (with a warning), not dropped to the default — except where the minimum encodes a disabled mode (e.g. a below-minimum positions stale-timeout) and for the discrete selectors (market-data tier, port), which warn and fall back to the default rather than clamp toward an unintended mode. All such warnings surface via the `ConfigWarnings` status field.
+Configuration is read from environment variables, then a config file (`%LOCALAPPDATA%\StreamXLS\config.json`), then code defaults — environment wins. A malformed (non-numeric) value warns and falls back to the default. An out-of-range INTEGER is CLAMPED to the nearest in-range bound (with a warning), not dropped to the default — except where the minimum encodes a disabled mode (e.g. a below-minimum positions stale-timeout) and for the discrete selectors (market-data tier, port), which warn and fall back to the default rather than clamp toward an unintended mode. All such warnings appear in the `CONFIGWARNINGS` status field.
+
+Most of these are also editable — with their valid range and default in view — from the StreamXLS Control Panel Settings dialog, which writes the same config file. For the setting-name mapping and the rules that decide whether the Control Panel value or an environment variable wins, see [Advanced: environment variables](manual.md#advanced-environment-variables).
 
 | Key | Type | Default | Description |
 | --- | --- | --- | --- |
 | `TWS_RTD_MARKET_DATA_TYPE` | 1–4 | 4 | Market-data tier to request (1 real-time, 2 frozen, 3 delayed, 4 delayed-frozen); delayed-frozen falls back gracefully without subscriptions. |
 | `TWS_RTD_ERROR_DISPLAY` | MESSAGE / NA | MESSAGE | How TWS errors surface in cells (see error-display effect). |
 | `TWS_RTD_PRESERVE_ON_DISCONNECT` | bool | false | false = fail loud (account/order/position/PnL values go #N/A on disconnect); true keeps last-known values. Market data is out of scope. |
-| `TWS_RTD_DELAYED_ANNOTATION` | bool | false | When true, delayed numeric values render as '150.25 (delayed)' text instead of a bare number. |
+| `TWS_RTD_DELAYED_ANNOTATION` | bool | false | When true, delayed-tier numeric values render as the text `150.25 (delayed)` instead of a bare number. Excel then ranks that text above any number, so `=IF(A1>100,…)` is silently TRUE and `SUM`/`MAX`/`AVERAGE`/`COUNTIF` skip the cell, while `+` arithmetic fails loud with `#VALUE!`; strip the suffix to recover the value with `=VALUE(SUBSTITUTE(A1," (delayed)",""))`. Annotation is presentation only. For a plain flag, read the `ISDELAYED` field instead. |
 | `TWS_RTD_HOST` | host | 127.0.0.1 | Default TWS host when a formula names none. |
 | `TWS_RTD_PORT` | 1–65535 | 7496 | Default TWS port when a formula names none (7496 = live TWS). |
-| `TWS_RTD_CLIENT_ID` | int | auto | Fixed API client id; unset auto-generates a unique id per process. |
+| `TWS_RTD_CLIENT_ID` | int | auto | Fixed API client ID; unset auto-generates a unique ID per process. |
 | `TWS_RTD_LOG_FILE` | path | (none) | Log-file path (supports env-var expansion); unset disables file logging. |
-| `TWS_RTD_LOG_LEVEL` | enum | Info | Log verbosity threshold (Error/Warn/Info/Debug/Trace). |
+| `TWS_RTD_LOG_LEVEL` | enum | Info | Log verbosity threshold: None (or Off), Error, Warn (or Warning), Info, Debug, Trace, Verbose; an unrecognized value falls back to Info with a warning. |
 | `TWS_RTD_LOG_RETENTION_DAYS` | -1–365 | 5 | Days to retain rotated logs; -1 disables cleanup. |
 | `TWS_RTD_THROTTLE_MS` | 0–10000 | 500 | Minimum interval between position-refresh requests (ms). |
 | `TWS_RTD_ORDER_REFRESH_SECONDS` | 5–300 | 15 | Order-polling interval (seconds). |
-| `TWS_RTD_HEARTBEAT_INTERVAL_MS` | ≥15000 or -1 | (Excel default) | Overrides Excel's RTD heartbeat interval; -1 disables. |
-| `TWS_RTD_POSITION_REQUEST_TIMEOUT_MS` | 0–120000 | 8000 | Positions watchdog: re-issue reqPositions when a snapshot stalls this long (0 disables). |
+| `TWS_RTD_HEARTBEAT_INTERVAL_MS` | ≥15000 or -1 | (Excel default) | Overrides Excel's RTD heartbeat interval; -1 disables. Setting -1, or any value above 15000, also starts a server-owned background cadence, so a heartbeat you moved out of the way is not the only thing that can re-arm a dropped update. |
+| `TWS_RTD_POSITION_REQUEST_TIMEOUT_MS` | 0–120000 | 8000 | Positions watchdog: re-issue reqPositions when a snapshot stalls this long (0 disables, which also disables the reconnect-escalation below — it counts these re-requests). |
 | `TWS_RTD_POSITION_REQUEST_MAX_RETRIES` | -1–20 | -1 | Max watchdog re-requests per stuck episode; -1 = unlimited. |
-| `TWS_RTD_POSITION_STALE_TIMEOUT_MS` | 0–600000 | 30000 | Flip individual/aggregate position values to #N/A after this long stuck (0 disables; negatives rejected). |
-| `TWS_RTD_POSITION_RECONNECT_AFTER_RETRIES` | 0–100 | 4 | Force a full reconnect after this many futile re-requests (0 disables). |
+| `TWS_RTD_POSITION_STALE_TIMEOUT_MS` | 0–600000 | 30000 | Flip individual/aggregate position values to #N/A after this long stuck (0 disables; negatives rejected). Independent of the request timeout. |
+| `TWS_RTD_POSITION_RECONNECT_AFTER_RETRIES` | 0–100 | 4 | Force a full reconnect after this many futile re-requests (0 disables); inert when the request timeout is 0, since nothing counts the re-requests. |
+| `TWS_RTD_MD_LIVENESS_PROBE_MS` | 0–600000 | 20000 | Market-data liveness probe: how long a `reqCurrentTime` round trip may go unanswered on a socket reporting connected before that window counts as a miss. It also spaces the probes (one per window), and the probe runs only while market-data subscriptions exist. 0 disables it; a negative value is rejected (warns, falls back to the default) rather than clamped into the disabled mode. |
+| `TWS_RTD_MD_LIVENESS_MISSES` | 0–20 | 2 | How many CONSECUTIVE unanswered probes force a full reconnect — the recovery path out of a wedged-but-alive TWS socket, where `ISCONNECTED` reads 1 while quotes silently freeze at pre-wedge prices. Any reply — and any other inbound callback — resets the count, so neither a slow TWS nor a busy one triggers it; only a socket that delivers nothing at all does. 0 disables the probe, 1 is raised to the design minimum of 2, and a negative value is rejected (warns, falls back to the default). |
 | `TWS_RTD_UPDATE_NOTIFY_MIN_MS` | 0–60000 | 0 | Minimum interval between UpdateNotify attempts (0 = no throttle). |
-| `TWS_RTD_UPDATE_NOTIFY_PENDING_STALE_MS` | 100–60000 | 1000 | Window after which pending topics are considered stale. |
-| `TWS_RTD_NOTIFY_EXPECT_REFRESH_MS` | 0–60000 | 0 | Warn if Excel does not call RefreshData within this window after a notify (0 disables). |
+| `TWS_RTD_UPDATE_NOTIFY_PENDING_STALE_MS` | 500–60000 | 1000 | Window after which pending topics are considered stale. Smaller values are accepted but raised to 500 at runtime. |
 | `STREAMXLS_TWSAPI_PATH` | path | (auto) | Override the TWS-API client location (directory or DLL); resolver reads env then config file. |
 | `STREAMXLS_CONFIG_FILE` | path | %LOCALAPPDATA%\StreamXLS\config.json | Location of the optional config file; read from the environment only. |
 
@@ -610,23 +674,25 @@ These keys are recognized only to warn that they no longer have any effect:
 
 - `TWS_RTD_ACCOUNT_VALUES_NA_ON_DISCONNECT` and `TWS_RTD_PNL_VALUES_NA_ON_DISCONNECT` — retired; use `TWS_RTD_PRESERVE_ON_DISCONNECT` instead.
 
-### Connection tokens
+### Connection arguments
 
-A topic can name its TWS connection inline with these tokens (otherwise the default host/port are used). Defaults: host `127.0.0.1`, port `7496`.
+A topic can name its TWS connection inline with these arguments (otherwise the default host/port are used). Defaults: host `127.0.0.1`, port `7496`.
 
-| Token | Meaning |
+`status` topics are the exception. A status topic carrying no connection argument piggybacks the sole connection when StreamXLS has exactly one; with two or more, or with none created yet, it takes the default instead (creating it if absent). The count is of connections CREATED — every formula except the bare-name metadata fields creates one, a connection whose TWS never answers still counts, and none is removed before the session ends. That choice is made once, when the topic is first subscribed, and holds for the rest of the session — so a workbook with more than one connection must name the connection in every formula, status topics included. The `CONNECTIONKEY` status field reports the connection a status topic actually bound to, so the choice can be read rather than inferred.
+
+| Argument | Meaning |
 | --- | --- |
 | `paper` | Paper-trading TWS (port 7497). |
 | `gw` | IB Gateway, live (port 4001). |
 | `gwpaper` | IB Gateway, paper (port 4002). |
-| `host=<host>` | Explicit host. |
-| `port=<port>` | Explicit port. |
-| `clientid=<id>` | Explicit API client id. |
-| `<host>:<port>` | Host and port in colon form. |
+| `host={host}` | Explicit host. |
+| `port={port}` | Explicit port. |
+| `clientid={id}` | Explicit API client ID. |
+| `{host}:{port}` | Host and port in colon form. |
 
 ### Error-display effect
 
-`TWS_RTD_ERROR_DISPLAY` selects how errors render: `MESSAGE` (default) shows the error text; `NA` shows Excel `#N/A`. It affects ONLY market-data subscription errors (the three sites that route through the error-display switch); license text and `#N/A` placeholders are unaffected.
+`TWS_RTD_ERROR_DISPLAY` selects how errors render: `MESSAGE` (default) shows the error text; `NA` shows Excel `#N/A`. It affects ONLY market-data error displays (every site that renders a market-data error honors the switch); license text and `#N/A` placeholders are unaffected.
 
 ## 12. Cell error vocabulary
 
@@ -637,13 +703,13 @@ Errors surface in a cell as text prefixed `RTD error:` (with a trailing space). 
 | `ERROR_PREFIX` | RTD error: |
 | `ERROR_MAX_TICKERS` | Max tickers reached: TWS's market-data subscription limit is full. Reduce the number of market-data cells for this to stream. |
 | `ERROR_CONTRACT_REQUIRED` | Contract description is required for 'position' topics. Use 'positions' (plural) for position lists. |
-| `ERROR_ACCOUNT_CODE_REQUIRED` | Account code is required for account topics. |
+| `ERROR_ACCOUNT_CODE_REQUIRED` | Account number is required for account topics. |
 | `ERROR_ACCOUNT_VALUE_KEY_REQUIRED` | Account value key is required. |
 | `ERROR_STATUS_FIELD_REQUIRED` | Status field is required. |
 | `ERROR_METADATA_FIELD_REQUIRED` | Metadata field is required. |
 | `ERROR_POSITIONS_FIELD_REQUIRED` | Positions field is required (e.g., SymbolsCsv, ConIdCsv, PositionsChangedUtc). |
 | `ERROR_POSITIONS_FIELD_INVALID` | Positions field is invalid. Expected SymbolsCsv, ConIdCsv, or PositionsChangedUtc. |
-| `ERROR_INVALID_ACCOUNT_CODE` | Invalid account code |
+| `ERROR_INVALID_ACCOUNT_CODE` | Invalid account number |
 | `ERROR_FORMULA_CORRUPTED` | Formula corrupted; please re-enter. |
 
 The account per-currency misconfiguration sentinel (see section 10) is another fail-loud cell value.

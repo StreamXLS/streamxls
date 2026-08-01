@@ -10,7 +10,7 @@ Market data, account values, positions with live P&L, order monitoring, and orde
 **[StreamXLS.com/docs](https://streamxls.com/docs)** hosts basic documentation and is the recommended starting point for new users. This repository holds the [complete documentation](docs/README.md):
 
 - [quickstart.md](docs/quickstart.md) — start here: your first `=RTD()` formulas across status, account, market-data, positions, and orders.
-- [detailed-instructions.md](docs/detailed-instructions.md) — complete explanations of how to get what you want via StreamXLS.
+- [manual.md](docs/manual.md) — complete explanations of how to get what you want via StreamXLS.
 - [reference.md](docs/reference.md) — the comprehensive reference: every topic, every field, every setting.
 
 ## Downloads
