@@ -258,7 +258,7 @@ An `order` topic `STATUS` cell reports the status strings in TWS's own spelling 
 
 Staging is a side effect of subscribing — entering the formula stages the order, and each cell holding the formula stages its own.
 
-Arguments are `key=value` pairs in any order. `sym`, `side`, `shares`, and `type` are required. Order types that need a price require it: `type=LMT` needs `limit`, `type=STP` needs `stop`, `type=TRAIL` needs exactly one of `stop` or `trailingpercent`. `exch` defaults to `SMART`.
+Arguments are `key=value` pairs in any order, written one per argument or semicolon-joined into a single argument (`"sym=AAPL;side=BUY;shares=100;type=LMT;limit=150.05"`) — except `algoparams`, `tag` (and its synonyms), `account`, `fagroup`, `ocagroup` and any connection argument, each of which must be its own argument. `sym`, `side`, `shares`, and `type` are required. Order types that need a price require it: `type=LMT` needs `limit`, `type=STP` needs `stop`, `type=TRAIL` needs exactly one of `stop` or `trailingpercent`. `exch` defaults to `SMART`.
 
 Non-stock contracts use the same contract keys as everywhere else — add `sec=`, `exp=`, `strike=`, `right=`, `conid=`, and the rest to stage an option, future, or FX order; security type defaults to `STK` and currency to `USD` when omitted. Multi-leg combos (`sec=BAG`) are not supported.
 

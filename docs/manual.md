@@ -225,18 +225,29 @@ Common keys (case-insensitive) — the complete set of contract keys, with every
 
 #### One key per argument, or every key in one argument
 
-The keys above can be written as separate RTD arguments, as in the examples, or joined into a SINGLE
-argument with semicolons — `"sym=SPY;sec=OPT;strike=680;right=C;exp=20261218"`. On a quote or an
-option-definition formula the two forms parse identically; use whichever suits the sheet.
+The keys above can be written as separate RTD arguments, as in the examples, or joined into a *single*
+argument with semicolons — `"sym=SPY;sec=OPT;strike=680;right=C;exp=20261218"`. On a quote, an
+option-definition or a `StageOrder` formula the two forms parse identically; use whichever suits the
+sheet.
 
 The `position` topic accepts **only** the joined form. It reads one argument as the contract and the
 next as the field, so a second `key=value` argument lands in the field slot and fails loud
 (`Unsupported position field sec=OPT.`). The compact notations below are single arguments by nature,
 so they work there unchanged.
 
-`StageOrder` is the opposite: it takes one key per argument and does not split on `;`. A joined token
-there is read as a single key whose value swallows everything after the first `=`, and TWS rejects
-the contract that results.
+A few `StageOrder` keys are an exception to the joined form, for two different reasons. `tag` (and
+its synonyms `nonce`, `seq`, `submit`, `clienttag`), `account`, `fagroup` and `ocagroup` are free
+text, so each keeps everything after its `=` and a `;` there is data rather than a separator:
+`"tag=A;B"` is a tag reading `A;B`. `algoparams` is judged whole by its own grammar, which rejects a
+`;` outright (see [Optional parameters (common)](#optional-parameters-common)). Write each of them as
+its own argument. Joined *behind* another key (`"sym=SPY;tag=A"`), or carrying a recognized key
+inside its own value (`"tag=ORD17;exch=CBOT"` could mean a tag plus a venue, or a tag whose text
+contains one), the argument fails loud rather than guessing where the value ends.
+
+A connection reference (`paper`, `gw`, `gwpaper`, `host=`, `port=`, `clientid=`, `host:port`) must be
+its own argument too, for a different reason again: it is read from the *whole* argument, so joined
+with a `;` it would be invisible to the connection and the order would stage on the default TWS. It
+fails loud instead.
 
 ### Method 3a: compact `/` notation
 
@@ -309,10 +320,8 @@ defaults; add `exch=` or `cur=` as separate arguments where those defaults are w
 example does. A `key=value` argument beats the pipe segment for the same field, so you can override
 one part without rewriting the string.
 
-**Pipe-notation is case-sensitive.** A trap specific to the pipe form: it hands its segments to TWS exactly as you typed them, where the
-`@` and `/` forms upper-case them for you. Write `SPY|OPT|20261218|C|680`, not
-`spy|opt|20261218|c|680`: TWS answers the lower-case spelling with no security definition, and the
-formula fails loud rather than quoting anything. See [TWS reports "No security definition"](#tws-reports-no-security-definition).
+Case does not matter. Like the `@` and `/` forms, the pipe form upper-cases its segments for you, so
+`spy|opt|20261218|c|680` and `SPY|OPT|20261218|C|680` ask for the same contract.
 
 ### Method 4: ConID (most precise)
 
@@ -368,10 +377,12 @@ optional security type and expiry in `$B2` and `$C2`, safe to fill down whether 
 
 The rest of this section is what each rule prevents. Skip it unless a formula has surprised you.
 
-**Why rule 1.** Naming the field is the supported form, and a field argument you supplied and left
-*blank* is worse than one you left out: StreamXLS cannot tell a cleared field-header cell from an
-optional key that collapsed to nothing. Rather than guess — and stream a live, plausible number under
-a header that says something else — it stops with an error. Naming the field avoids ambiguity and errors.
+**Why rule 1.** Naming the field is the only accepted form. A field argument you supplied and left
+*blank* and a field you left out both stop with an error: rather than guess — and stream a live,
+plausible number under a header that says something else — StreamXLS refuses either way. The blank
+draws the more specific message, since it can at least point at the blank argument, even though
+StreamXLS cannot tell a cleared field-header cell from an optional key that collapsed to nothing.
+Naming the field avoids both.
 
 **Why rule 2.** `"cur="&B2` with `B2` empty produces `cur=` — a key that names part of the contract
 and then fails to supply it. StreamXLS will not quietly substitute `USD`, and will not quietly drop
@@ -1013,7 +1024,13 @@ defaults, validation, and what cannot be staged — is in
 =RTD("Tws.Rtd",, "StageOrder", "sym=AAPL", "side=BUY", "shares=100", "type=LMT", "limit=150.05", "exch=SMART")
 ```
 
-`StageOrder` uses `key=value` arguments; argument order does not matter.
+`StageOrder` uses `key=value` arguments; argument order does not matter. As on every other topic, the
+keys can be written one per argument or semicolon-joined into a single argument — a lone
+`"sym=AAPL;side=BUY;shares=100;type=LMT;limit=150.05;exch=SMART"` stages the same order as the
+formula above — and contract and order keys may be mixed freely in one joined argument. The
+exceptions are `algoparams`, `tag` (and its synonyms), `account`, `fagroup`, `ocagroup` and any
+connection argument, each of which must be written as its own argument: see
+[One key per argument, or every key in one argument](#one-key-per-argument-or-every-key-in-one-argument).
 
 ### Required parameters
 
@@ -1028,10 +1045,10 @@ Order type-dependent requirements (each enforced with a loud error):
 
 - `type=LMT` and `type=STP LMT` require `limit` > 0.
 - `type=STP` and `type=STP LMT` require `stop` > 0.
-- `type=TRAIL` requires exactly ONE of `stop` (the trailing amount) or `trailingpercent`.
-- `type=TRAIL LIMIT` requires three things: exactly ONE of `stop` (the trailing amount) or
+- `type=TRAIL` requires *exactly one* of `stop` (the trailing amount) or `trailingpercent`.
+- `type=TRAIL LIMIT` requires three things: *exactly one* of `stop` (the trailing amount) or
   `trailingpercent`; `trailstop` (alias `trailstopprice`), the initial trigger price — TWS rejects a
-  trailing stop limit that has none, answering "Please enter a stop price"; and exactly ONE of
+  trailing stop limit that has none, answering "Please enter a stop price"; and *exactly one* of
   `limit` (a fixed limit price) or `limitoffset` (alias `lmtoffset`, the distance from the trigger at
   which the limit is placed — any finite decimal, including zero and negative values, which TWS
   accepts and which pass through as written). Supplying both is refused, quoting TWS's own wording:
@@ -1134,7 +1151,7 @@ identify must be pinned down before anything is staged, and StreamXLS says so lo
 letting TWS choose: `OPT`, `FOP` and `WAR` need `exp`+`strike`+`right` (or `loc`), `FUT` needs `exp`
 (or `loc`), and `BOND` needs its CUSIP or ISIN written as `sym` — the way IBKR identifies a bond — or
 else `loc`, or `conid` alone. See [reference.md §4](reference.md#4-stageorder-write-keys). What it
-will NOT do:
+will *not* do:
 combination/spread (multi-leg / `sec=BAG`) orders cannot be staged — that fails loud rather than
 silently staging one leg. The combo syntax above is for market-data topics, not for staging. Every
 contract key is validated (bad strike, expiry, currency, or a derivative field on the wrong security
@@ -1292,12 +1309,11 @@ These are addressed by bare name, with no `status` argument:
 
 A metadata formula resolves once, when it is first subscribed, and two families are exceptions. The
 `LICENSE_*` fields re-resolve around the initial verification window, so a formula entered while
-entitlement was still being checked repaints once the definitive state lands. `LICENSE_*` and
-`TWSAPI_*` both also repaint mid-session, without re-entry, when what they report changes — a trial
+entitlement was still being checked updates once the definitive state lands. `LICENSE_*` and
+`TWSAPI_*` both also update mid-session, without re-entry, when what they report changes — a trial
 running out, a subscription lapsing, an activation, or a TWS API that turns out to be incompatible
-when a connection is attempted. A license repaint is not immediate: entitlement is re-checked about
-every 6 hours while your license grants data and about every 10 minutes once it does not, so a change
-made elsewhere reaches the sheet at the next check. Restart Excel to force one.
+when a connection is attempted. A StreamXLS license change is not immediate; restart Excel to force
+a re-check.
 
 `TWSAPI_VERSION` is fixed for the session — the installed API is inspected once per Excel run, so
 install or upgrade it with Excel closed. Every other metadata field — `VERSION`, `BUILD_TIME`, the
@@ -1315,20 +1331,18 @@ Updates are offered, never forced. A licensed copy may keep running an old build
 
 ![The Control Panel's Updates section with its Check for updates button](img/control-panel-updates.png)
 
-- A small per-user scheduled task (no admin rights) checks for updates daily at 03:00, and again
-  a couple of minutes after the computer resumes from sleep or you sign in — so a laptop that is
-  asleep at 03:00 still gets checked. The Control Panel also runs a quiet check on launch if the
-  last one is stale.
-- The check writes a small local breadcrumb; the engine reads it locally (no network call) and
+- A small per-user scheduled task (no admin rights) checks for updates daily at 03:00, or a few
+  minutes after the computer resumes from sleep or you sign in — so a laptop that is asleep at
+  03:00 still notifies you of updates. The StreamXLS Control Panel also runs a check on launch if
+  the last one is stale.
+- The update check writes a small local breadcrumb; the engine reads it locally (no network call) and
   surfaces it through the `UPDATE_AVAILABLE`, `UPDATE_CRITICAL`, `UPDATE_LATEST_VERSION`, and
-  `UPDATE_MESSAGE` topics. These resolve as one-shot metadata topics *and* as live status fields
-  (reached via the `status` argument, e.g. `=RTD("Tws.Rtd",, "status", "UPDATE_CRITICAL")`), so a
-  critical flag that flips mid-session appears without re-subscribing.
+  `UPDATE_MESSAGE` topics.
 - The engine composes the notice text itself from fixed phrasing — a plain `Update available
   (x.y.z).`, or a louder `IMPORTANT: a critical update (x.y.z) is available - install it before
   continuing.` for a critical update.
 - To install, the Control Panel downloads the signed installer, verifies its signature, and — after
-  you confirm — launches it and closes itself so the files can be replaced. Updates apply only
+  you approve — launches it and closes itself so the files can be replaced. Updates apply only
   when Excel is closed; an update never hot-swaps under you mid-session.
 
 ---
@@ -1351,7 +1365,7 @@ If your trial ends, a subscription lapses, or the license simply cannot be verif
 is open, data formulas stop showing data and instead show a short license message — a line of
 *text*, for example:
 
-- `StreamXLS trial expired — purchase at https://streamxls.com/buy; activate in StreamXLS Control Panel.`
+- `StreamXLS trial expired — purchase at https://streamxls.com/buy; activate in StreamXLS Control Panel; data resumes automatically after activation (restart Excel to re-check immediately).`
 - `StreamXLS license expired — renew at https://streamxls.com/buy; data resumes automatically after renewal (restart Excel to re-check immediately).`
 
 This affects all data formulas. Status and metadata formulas keep working — connection status, `LICENSE_STATE`,
@@ -1376,6 +1390,21 @@ last confirmed check; only if the server is still unreachable past that window d
 to the license message. (A different failure — the local license component itself breaking, e.g.
 quarantined by antivirus — carries a longer grace on a paid license.) A transient verification
 hiccup therefore rides through without interrupting live data.
+
+**The Control Panel raises a Windows notification before any of this happens.** It does so as your
+free trial approaches its end — roughly a week out, then three days, then the day before, then on
+the last day — and, once StreamXLS is at risk of losing the ability to verify your license, about a
+week, three days and one day before verification runs out. That second case is the one where
+reconnecting, or allowlisting `api.cryptlex.com` through a firewall or VPN, is all that is needed.
+At most one such notification appears per day, whatever else happens; a license that has already
+lapsed is announced once and then not repeated. StreamXLS never warns about a healthy paid
+subscription approaching its renewal date, because that date simply moves forward each time you
+renew. To turn the reminders off entirely, open the Control Panel and clear **Remind me before my
+trial or license expires** in the License status box; the setting takes effect immediately and any
+notification already showing is withdrawn. Two separate switches govern these: that checkbox is
+StreamXLS's own, and Windows' per-app notification setting for StreamXLS silences them whatever the
+checkbox says. A reminder that came due while Windows notifications were switched off for StreamXLS
+counts as delivered — it is not replayed if you switch them back on later.
 
 ### The formula hazard: license text landing in numeric cells
 
