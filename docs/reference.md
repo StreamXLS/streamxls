@@ -25,6 +25,8 @@ A category argument as the first non-connection argument selects the request typ
 
 *(authored — not code-asserted.)* The request type is resolved by scanning the arguments in this order, first match wins: (1) a bare metadata field name; (2) an explicit category argument from the table above; (3) a bare option-definition field name; (4) a bare name-addressable status field. If none match, the request is treated as market data. `MARKETDATATYPE` is deliberately excluded from the bare-status fall-through so a per-contract `MARKETDATATYPE` stays market data; reach the connection-level status field via the explicit `status` argument.
 
+*(authored — not code-asserted.)* First match wins, but the arguments it did not match are not ignored. A `status` field answers for the connection as a whole and a metadata field for the whole add-in — neither takes an account, a contract, or a second field — so once a formula resolves to `status` or to metadata, any other argument that is not a [connection argument](#connection-arguments) fails the cell loud, naming the argument it cannot honour, instead of answering a different question from the one written. This holds wherever the argument sits, before or after the field. Blank arguments are connection slots, not extra arguments, so a trailing empty cell is always safe. Name one field per cell: `=RTD("tws.rtd", , "ISCONNECTED", "U1234567")`, `=RTD("tws.rtd", , "AAPL", "BID", "ISCONNECTED")` and `=RTD("tws.rtd", , "AAPL", "BID", "status", "ISCONNECTED")` are errors, not an `ISCONNECTED` reading.
+
 ## 2. Market-data fields
 
 Request with a contract and a field name, e.g. `=RTD("tws.rtd", , "AAPL", "BID")`. Field names are case-insensitive. The full supported set is enumerated below by group. *Every* formula names the field it wants: a field name outside the set below fails loud rather than serving some other number under your header.
@@ -53,8 +55,22 @@ The field can also be named explicitly, as its own `qt=BID` argument or as a seg
 | `BIDEXCH` | Exchange(s) posting the best bid. |
 | `ASKEXCH` | Exchange(s) posting the best ask. |
 | `LASTEXCH` | Exchange of the last trade. |
-| `LASTTIME` | Timestamp of the last trade, passed through as TWS sends it: Unix epoch *seconds* as text, not an Excel date-time. Convert with `=value/86400 + DATE(1970,1,1)` for a UTC date-time. |
+| `LASTTIME` | Timestamp of the last trade: Unix epoch *seconds* as text. Convert to Excel UTC with `=value/86400 + DATE(1970,1,1)`. |
 | `HALTED` | Trading-halt indicator (0 = not halted; >0 = halted). |
+
+### Size and volume units
+
+**Sizes and volume for US stocks may arrive in round lots (i.e., units of 100 shares) rather than in shares.** The unit is set in TWS, via two separate checkboxes under *Global Configuration → API → Settings*:
+
+- **"Send market data in lots for US stocks for dual-mode API clients"** — governs `BIDSIZE`, `ASKSIZE`, `LASTSIZE` and their `DELAYED*` twins. IBKR labels this one *(Not recommended)*.
+- **"Send volumes in lots from all market data sources for US stocks"** — governs `VOLUME` and `DELAYEDVOLUME`.
+
+Because they are set separately, sizes in shares beside a volume still counted in lots is a perfectly ordinary configuration — check both before trusting either. While a box is checked, its fields arrive divided by 100 and rounded down. Two symptoms to recognise:
+
+- **A `0` size standing beside a live price.** An inside bid of 40 shares truncates to `0` while `BID` keeps quoting: the `0` means "less than one round lot", not "no size" — where a quote is genuinely absent the formula reports `#N/A`. Odd-lot insides are common on higher-priced single stocks and rare on large ETFs, so a block of `0 x 0` sizes under real prices on the former is faithful data, not a dropped subscription.
+- **A session that traded 74.3 million shares reporting `742,668`.**
+
+Clearing a checkbox switches its fields to share counts, and those cells then read 100× larger. The settings name US stocks; other markets follow their own exchange conventions. The `ODDLOT*` fields below are a *separate* quote feed rather than a shares-unit view of the fields above — they report an odd-lot best bid and ask where your subscription supplies one.
 
 ### Market data — odd-lot quotes
 
@@ -220,6 +236,8 @@ Contracts can be given as a simple ticker (`AAPL`), a slash form (`AAPL@SMART/ST
 | `conid` | `contractid` | TWS contract ID (authoritative when present). |
 
 Defaults when a symbol-only request omits them, for market-data and option-definition contract parsing: security type `STK`, exchange `SMART`, currency `USD`. A position-topic contract defaults the same security type and currency but deliberately leaves the exchange *unconstrained* (blank), so a symbol-only spec matches the position on whatever exchange TWS reports rather than being pinned to `SMART`. When a `conid` is supplied the security type and currency are left to TWS; the exchange still defaults to `SMART` unless the spec supplies `exch` or a `localsymbol`.
+
+**Case, and one contract per formula.** Values are upper-cased for you on every notation — `sym=spy`, `SPY|opt|…` and `spy@arca/stk` ask for the same contracts as their upper-case spellings, and two case spellings of one contract therefore share one subscription. The two exceptions are `localsymbol` and `tradingclass`, which are case-significant on TWS and are passed through exactly as typed. A `key=value` argument beats a compact-form segment for the same field, so a column can override one part without rewriting the spec string — *except* the symbol: a ticker shorthand that contradicts `sym=`, or that stands beside a `conid=`, names a second instrument rather than overriding an attribute, and fails loud. The pipe form reads exactly five segments (`SYMBOL|SECTYPE|EXPIRY|RIGHT|STRIKE`); a sixth fails loud rather than being dropped — give an exchange or currency as its own `exch=`/`cur=` argument.
 
 **Every key you write must carry a value.** A key with nothing after the `=` — the shape `"cur="&B2` produces when `B2` is blank — fails loud rather than falling back to the default above or discarding a value the ticker shorthand supplied. The same applies to an empty segment of the compact form (`"BHP@ASX/STK/"&B2`, `"BHP@"&B2`, `"EUR."&B2&"/CASH"`) and to the four extension arguments below. *Omitting* a key is always legal; writing it and leaving it empty is not, because an omitted key and an empty one describe different instruments and StreamXLS will not guess which was meant. Build optional arguments with `IF` so they collapse to nothing when the cell is blank (`IF(B2="","","cur="&B2)`) — that idiom leaves a *blank* argument behind, which is dropped so long as the formula names its field ([section 2](#2-market-data-fields)). Two exceptions: the *pipe* form's segments are positional, so an empty segment is how that notation spells "omitted" (`SPY||||` is the plain stock) — its symbol position is required, and so is its *security-type* position whenever a *later* segment is filled in, because an empty security type is read as `STK` and `ES||202612` would otherwise ask for a *stock* carrying a futures expiry; and `StageOrder`'s *order* keys ([section 4](#4-stageorder-write-keys)) keep reading a blank as "not supplied", while its *contract* keys, `exch=` included, follow the rule — except `sym=`/`symbol=`, which are read on that order-key path, so a blank one reads as "not supplied" there: with no `conid=` the order then fails loud for a missing symbol, and with one the `conid` is authoritative anyway. The failure arrives as error text in the cell rather than an Excel error value, so `IFERROR`/`IFNA` will not hide it.
 
@@ -575,12 +593,12 @@ Most of these fields answer for one connection. Seven do not — `ACTIVETOPICCOU
 | `LASTPOSITIONLISTCHANGEUTC` | UTC time the position-list membership last changed — a contract entering or leaving the active set, not a size change or a price tick. Connection-wide (never scoped to one cell's account filter), and it advances only while position topics keep position data flowing. |
 | `LASTPOSITIONUPDATEUTC` | UTC time of the last accepted position callback. Freshness, not change: unlike LASTORDERUPDATEUTC it advances even when the delivered values are identical. |
 | `CONFIGWARNINGS` | Configuration-validation warnings, joined; empty when the configuration is clean. |
-| `CONNECTIONKEY` | Which TWS *this* cell is actually reading, as `host:port:clientId`. It exists because a status formula carrying no connection argument can bind to a connection you never named — it piggybacks the sole connection when there is exactly one, and otherwise takes the default (see [Connection arguments](#connection-arguments)) — and that choice is frozen at first subscription. Binding is per formula, not per sheet, so give this field the same connection argument as the cells you are checking. The client ID tracks automatic rotations; the host and port cannot change under a subscribed cell. This is a report, not a connection argument: an automatically assigned client ID is not part of the connection's identity, so pasting the value back into a formula names a *different* connection. `#N/A` means the binding could not be determined. |
+| `CONNECTIONKEY` | Which TWS *this* cell is actually reading, as `host:port:clientId`. It exists because a status formula carrying no connection argument can bind to a connection you never named — it piggybacks the sole connection when there is exactly one, and otherwise takes the default (see [Connection arguments](#connection-arguments)). Binding is per formula, not per sheet, so give this field the same connection argument as the cells you are checking. The client ID tracks automatic rotations; the host and port cannot change under a subscribed cell. If the cell had piggybacked the sole connection and a second connection has since been created, this field reports that instead — the binding is no longer meaningful, and every other status field on that formula reports the same. This is a report, not a connection argument: an automatically assigned client ID is not part of the connection's identity, so pasting the value back into a formula names a *different* connection. `#N/A` means the binding could not be determined. |
 | `ROTATIONCOUNT` | Lifetime automatic client-ID rotations on this connection. |
-| `UPDATE_AVAILABLE` | '1' when a newer release is available, else '0' (re-checked live). |
-| `UPDATE_CRITICAL` | '1' when the available update is critical, else '0'. |
-| `UPDATE_LATEST_VERSION` | Latest available version from the update check. |
-| `UPDATE_MESSAGE` | Engine-composed update guidance message. |
+| `UPDATE_AVAILABLE` | '1' when a newer release is available, '0' when an update check has run and found none, and `#N/A` when this computer has no completed update check on record (or the last one is more than two weeks old) — StreamXLS will not claim you are current on evidence it does not have. Re-checked live; `UPDATE_MESSAGE` says which case you are in. |
+| `UPDATE_CRITICAL` | '1' when the available update is critical, '0' when it is not, `#N/A` on the same no-evidence terms as `UPDATE_AVAILABLE`. |
+| `UPDATE_LATEST_VERSION` | Latest available version from the update check; empty when no newer version is known. |
+| `UPDATE_MESSAGE` | Engine-composed update guidance message: empty when up to date, the update notice when one is available, and an explanation when the update status is unknown. |
 
 ### Data-state values
 
@@ -599,14 +617,14 @@ Addressed by bare name (`=RTD("tws.rtd", , "VERSION")`). A metadata cell resolve
 | `ASSEMBLY_NAME` | Executing assembly simple name. |
 | `LICENSE_STATE` | License entitlement state. |
 | `LICENSE_MESSAGE` | License status message. |
-| `LICENSE_DAYS_REMAINING` | Trial days remaining (empty when not on trial). |
+| `LICENSE_DAYS_REMAINING` | Trial days remaining; empty when not on trial, `#N/A` while a trial is running but its expiry date could not be read. |
 | `TWSAPI_STATE` | TWS-API binding state. |
 | `TWSAPI_MESSAGE` | TWS-API binding message (actionable guidance). |
 | `TWSAPI_VERSION` | Detected TWS-API version. |
-| `UPDATE_AVAILABLE` | Update-available flag ('0'/'1'), resolved once at subscription. |
-| `UPDATE_CRITICAL` | Update-critical flag ('0'/'1'). |
-| `UPDATE_LATEST_VERSION` | Latest available version from the update check. |
-| `UPDATE_MESSAGE` | Update guidance message from the update check. |
+| `UPDATE_AVAILABLE` | Update-available flag ('0'/'1'), or `#N/A` when no completed update check is on record for this computer. Resolved once at subscription. |
+| `UPDATE_CRITICAL` | Update-critical flag ('0'/'1'), `#N/A` on the same terms. |
+| `UPDATE_LATEST_VERSION` | Latest available version from the update check; empty when no newer version is known. |
+| `UPDATE_MESSAGE` | Update guidance message from the update check, or an explanation when the update status is unknown. |
 
 ## 10. Account value keys
 
@@ -625,6 +643,8 @@ Addressed by bare name (`=RTD("tws.rtd", , "VERSION")`). A metadata cell resolve
 | `MAINTMARGINREQ` | Maintenance margin requirement. |
 
 Engine-computed additions: `OPENPOSITIONCOUNT` (count of positions with a non-zero size or market value), `DAILYPNL`, `REALIZEDPNL`, and `UNREALIZEDPNL` (from the P&L feed).
+
+**A key this account does not report.** Because the key set is *not* a fixed list, StreamXLS cannot check the spelling when you write the formula — it asks TWS instead, and answers once TWS has answered. When TWS has finished sending an account's values, and has reported other keys for that account, a key that received nothing is named in the cell: `RTD error: Account key 'NETLIQUIDATOIN' was not reported. TWS finished sending this account's values without reporting it — check the spelling; TWS also does not report every key for every account type. See streamxls.com/docs-reference.` Until then the cell reads `#N/A`: a key whose values have simply not arrived yet is never flagged. Two different causes produce this message and, from outside TWS, they are indistinguishable — a misspelled key, and a real key (including one listed on this page) that TWS does not report for *this* account type. Either way the cell will not fill while that remains true, and the message clears itself when it stops being true: a later delivery replaces it with the value — or with `#N/A`, where the only data that arrived is under the key's `…ByCurrency` counterpart rather than the spelling your formula used. Never flagged: `cur=BASE` cells (see below), and `OPENPOSITIONCOUNT`, `DAILYPNL`, `REALIZEDPNL` and `UNREALIZEDPNL` asked for without a currency, which come from other feeds rather than from the account download. Like other formula-fix messages this text appears even under `TWS_RTD_ERROR_DISPLAY=NA`.
 
 **Per-currency values.** Append a currency code as a trailing argument to request the per-currency breakdown (e.g. account, key, then `EUR`). Per-currency values require the TWS setting *Global Config > API > Settings > 'Use "$LEDGER-" prefix for per-currency keys.'* to be enabled; while it is disabled, affected cells fail loud with: `#LEDGER-DISABLED — enable TWS Global Config > API > Settings > 'Use "$LEDGER-" prefix for per-currency keys.'`. While the setting is disabled the sentinel *also* poisons the affected *bare* (non-currency-suffixed) dual-class keys — the aggregates TWS delivers in both an account-level and a per-currency category (CashBalance, AccruedCash, RealizedPnL, UnrealizedPnL, StockMarketValue, and the other dual-class values). Without the prefix the engine cannot tell an account-level aggregate from a currency row, so those bare aggregates are ambiguous and fail loud too. Bare non-dual-class keys (e.g. NetLiquidation) are unaffected.
 
@@ -682,7 +702,9 @@ These keys are recognized only to warn that they no longer have any effect:
 
 A topic can name its TWS connection inline with these arguments (otherwise the default host/port are used). Defaults: host `127.0.0.1`, port `7496`.
 
-`status` topics are the exception. A status topic carrying no connection argument piggybacks the sole connection when StreamXLS has exactly one; with two or more, or with none created yet, it takes the default instead (creating it if absent). The count is of connections *created* — every formula except the bare-name metadata fields creates one, a connection whose TWS never answers still counts, and none is removed before the session ends. That choice is made once, when the topic is first subscribed, and holds for the rest of the session — so a workbook with more than one connection must name the connection in every formula, status topics included. The `CONNECTIONKEY` status field reports the connection a status topic actually bound to, so the choice can be read rather than inferred.
+`status` topics are the exception. A status topic carrying no connection argument piggybacks the sole connection when StreamXLS has exactly one; with two or more, or with none created yet, it takes the default instead (creating it if absent). The count is of connections *created* — every formula except the bare-name metadata fields creates one, a connection whose TWS never answers still counts, and none is removed before the session ends.
+
+The piggyback holds only while one connection is all there is. If a second connection is ever created, a status cell that piggybacked stops answering and says so — `#AMBIGUOUS-CONNECTION`, naming the `host:port` it had been reading — rather than keep reporting one connection out of several without saying which. It does not move to another connection, and re-entering the formula does not restore it: with two or more connections an argument-less status formula takes the default. Name the connection in every formula, status topics included. A cell that took the default keeps answering; so do `ACTIVETOPICCOUNT`, `MARKETDATATYPE`, `CONFIGWARNINGS` and the four `UPDATE_*` fields, whose answers never came from a connection. The `CONNECTIONKEY` status field reports the connection a status topic actually bound to, so the choice can be read rather than inferred.
 
 | Argument | Meaning |
 | --- | --- |
@@ -719,4 +741,4 @@ Errors surface in a cell as text prefixed `RTD error:` (with a trailing space). 
 | `ERROR_INVALID_ACCOUNT_CODE` | Invalid account number |
 | `ERROR_FORMULA_CORRUPTED` | Formula corrupted; please re-enter. |
 
-The account per-currency misconfiguration sentinel (see [section 10](#10-account-value-keys)) is another fail-loud cell value.
+Three further fail-loud cell values are composed at the moment they are needed rather than fixed strings, so they are described here instead of tabled above. The account per-currency misconfiguration sentinel (see [section 10](#10-account-value-keys)). The extra-argument message, which opens `Unexpected extra argument` and then names the argument, the field the formula did resolve to, and the remedy: a `status` field answers for the connection as a whole and a metadata field for the whole add-in, so neither takes an account, a contract, or a second field — name one field per cell (see [Resolution order](#resolution-order)). And `#AMBIGUOUS-CONNECTION`, which a `status` cell carrying no connection argument publishes once it can no longer say which connection it means — it had piggybacked the sole connection, and a second connection has since been created. The text names the `host:port` it had been reading and the remedy: add a connection argument. See [Connection arguments](#connection-arguments).

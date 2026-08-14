@@ -206,7 +206,7 @@ Use `key=value` syntax for explicit, self-documenting formulas:
 =RTD("Tws.Rtd",, "sym=ES", "sec=FUT", "exch=CME", "exp=202612", "LAST")
 ```
 
-Common keys (case-insensitive) — the complete set of contract keys, with every alias and the symbol-only defaults, is in [reference.md §3](reference.md#3-contract-specification-keys):
+Common keys (case-insensitive) — the complete set of contract keys, with every alias and the symbol-only defaults, is in [reference.md §3](reference.md#3-contract-specification-keys). The *values* are case-insensitive too: `sym=spy` and `sym=SPY` ask for the same contract and share one subscription, as on every other notation. The two exceptions are `loc` and `tc`, which TWS reads case-sensitively and which StreamXLS therefore passes through exactly as typed:
 
 | Key | Aliases | Description |
 |-----|---------|-------------|
@@ -317,8 +317,11 @@ loud. `SPY||||` and `SPY|` write no later segment and stay legal.
 
 There are no exchange or currency segments, so both take the Method 1
 defaults; add `exch=` or `cur=` as separate arguments where those defaults are wrong, as the futures
-example does. A `key=value` argument beats the pipe segment for the same field, so you can override
-one part without rewriting the string.
+example does — a *sixth* pipe segment is not a place to put them, and fails loud rather than being
+dropped. A `key=value` argument beats the pipe segment for the same field, so you can override
+one part without rewriting the string. The symbol is the exception: `"SPY|OPT|20261218|C|680"` next
+to `"sym=IBM"` names two different instruments rather than overriding a detail of one, so it fails
+loud instead of picking a winner.
 
 Case does not matter. Like the `@` and `/` forms, the pipe form upper-cases its segments for you, so
 `spy|opt|20261218|c|680` and `SPY|OPT|20261218|C|680` ask for the same contract.
@@ -505,7 +508,7 @@ options on at least one expiration date.
 > **Each CSV field returns one comma-separated string, not a spilled range** — split it with
 `TEXTSPLIT` (Excel 365) or Text to Columns if you want one value per cell. A contract with no
 listed options returns `#N/A` rather than an empty string.
->
+
 > **These three fields cover every trading class on the underlying, and cannot be narrowed to one.**
 Weeklies come back alongside monthlies — `SPX` with `SPXW`. The `tc=` contract
 key does not narrow them: TWS's chain request carries no trading class at all. Neither can the
@@ -513,13 +516,13 @@ sheet, because the returned dates and strikes carry no class marker; and `Strike
 smallest increment anywhere in that aggregate, so it can be finer than any one class uses. Read all
 three as an answer about the underlying, then name the exact contract you want on the market-data
 formula that quotes it.
->
+
 > **Exchange behaves differently from class.** A stock or index underlying answers across every
 exchange TWS reports. A `FUT` or `FOP` underlying answers for the spec's `exch=` when you set one —
 and `SMART` is not a futures routing exchange, so a futures underlying normally needs an explicit
 `exch=`. Naming the contract with `loc=` and no `exch=` sends no exchange at all, so that chain
 spans every exchange TWS reports.
->
+
 > **`tc=` is not inert here — it just cannot shorten the chain.** When you name the underlying by
 symbol, the class is still sent while TWS resolves that symbol, so it can decide whether the cell
 resolves at all: a class that matches nothing fails the cell loud instead of returning a chain, and
@@ -1164,9 +1167,6 @@ key with an empty value (`cur=` from a blank cell) are all rejected rather than 
 
 ## Connection status and diagnostics
 
-Every topic family above answers "what is the market doing." This one answers "is StreamXLS in a
-state where I should believe the answer."
-
 ### Status fields
 
 ```excel
@@ -1176,12 +1176,12 @@ state where I should believe the answer."
 =RTD("Tws.Rtd",, "status", "ServerVersion")
 ```
 
+**One status field per formula.** A status formula answers for the connection as a whole — it takes no
+account, no contract, and no other fields beyond optional connection specifiers.
+
 Status fields re-resolve on every heartbeat, so an already-subscribed cell tracks live changes
 without re-entry. They scope per connection — supply a `paper`/`gw`/`host=`/`port=` argument, or omit it
-only when a single connection is in play (see
-[Which connection a status cell reads](#which-connection-a-status-cell-reads); the value re-resolves
-each heartbeat, the connection it reads does not). The complete set is in
-[reference.md §9](reference.md#9-status-and-metadata-fields).
+only when a single connection is in play (see [Which connection a status cell reads](#which-connection-a-status-cell-reads); the value re-resolves each heartbeat, the connection it reads does not). The complete set is in [reference.md §9](reference.md#9-status-and-metadata-fields).
 
 Seven of these fields are not per-connection at all: `ActiveTopicCount`, `MarketDataType`,
 `ConfigWarnings` and the four `UPDATE_*` fields report RTD-wide facts. A connection argument on those still decides which connection the *cell binds to* — it just cannot change the answer.
@@ -1216,8 +1216,9 @@ decide it, in order:
    `{host}:{port}`, or `{host}:{port}:{clientid}`) — StreamXLS uses exactly that connection. This is
    the only form whose answer does not depend on what the rest of the workbook is doing.
 2. No connection argument, and StreamXLS has exactly one connection — the status topic piggybacks
-   that connection, whichever one it is. This is the single-TWS convenience, and it is safe only while
-   one connection is genuinely all there is.
+   that connection, whichever one it is. This is the single-TWS convenience, and it lasts only while
+   one connection is genuinely all there is: see [When a piggybacked cell stops
+   answering](#when-a-piggybacked-cell-stops-answering) below.
 3. No connection argument, and the count is anything but one — with two or more connections, or with
    none created yet, the status topic takes the default (`127.0.0.1:7496`, unless the Control Panel
    overrides it) and creates that connection if it does not exist. It does not pick the connection
@@ -1235,13 +1236,42 @@ formula creates the default. The bare-name metadata fields — `VERSION`, `LICEN
 so they never affect the count. The count these rules turn on therefore depends on which formulas
 Excel evaluated first, and Excel does not promise an order.
 
-The choice is made once, when the formula is first subscribed, and it holds for the rest of the Excel
-session. A status formula that subscribes while only the paper connection exists keeps reading paper
-after a live connection joins the workbook a second later. A status formula that subscribes before
-any connection exists takes rule 3 and stays on the default — which is how a paper-only workbook ends
-up showing `IsConnected` = `0` next to paper cells that are working fine. Re-entry (F2, Enter) re-runs
-the resolution, but it is not a way back: once the default connection exists, an argument-less status
-formula resolves to it. Naming the connection is the only repair.
+A rule-1 or rule-3 choice is made once, when the formula is first subscribed, and it holds for the
+rest of the Excel session. A status formula that subscribes before any connection exists takes rule 3
+and stays on the default — which is how a paper-only workbook ends up showing `IsConnected` = `0` next
+to paper cells that are working fine. Re-entry (F2, Enter) re-runs the resolution, but it is not a way
+back: once the default connection exists, an argument-less status formula resolves to it. Naming the
+connection is the only repair.
+
+#### When a piggybacked cell stops answering
+
+Rule 2 is the exception, because its precondition can expire. If a second connection is ever created,
+a cell that piggybacked the sole connection can no longer say which TWS it means — so it stops
+answering and tells you, in the cell:
+
+```
+RTD error: #AMBIGUOUS-CONNECTION — this status cell names no connection. It bound to
+127.0.0.1:7497 while that was the only connection; StreamXLS now has 2. Add a connection
+argument (e.g. paper, gw, host=, port=, clientid=) to name the TWS you mean.
+```
+
+It names the connection by `host:port` only. The client ID is deliberately left out: an automatically
+assigned one can rotate while a cell is subscribed, so naming it in a sentence about the past could
+name an ID the cell never bound to. Host and port cannot change under a subscribed cell.
+
+Read it as a message about the *formula*, not about TWS: the connections themselves are fine, and
+cells that name their connection are unaffected. This replaces the older behaviour, in which such a
+cell went on reporting the connection it had piggybacked — a `1` or a `0` that looked like an answer
+about your workbook but was an answer about one connection out of several, chosen by whichever
+formula Excel happened to evaluate first.
+
+The repair is to name the connection (rule 1). Three things deliberately do *not* happen: the cell is
+never moved to a different connection behind your back; deleting or restarting a TWS does not undo it
+(nothing removes a connection while StreamXLS is running); and re-entering the formula does not
+restore the piggyback, because with two or more connections an argument-less formula takes rule 3 and
+lands on the default. Cells already bound by rule 1 or rule 3 keep answering, and so do the seven
+fields that never read a connection (`ActiveTopicCount`, `MarketDataType`, `ConfigWarnings`, the four
+`UPDATE_*`).
 
 You do not have to infer which connection a status cell landed on — ask it:
 `=RTD("Tws.Rtd",, "status", "ConnectionKey")` reports the `host:port:clientId` that *that* formula
@@ -1257,7 +1287,9 @@ cell reference — the pattern the demo workbook uses, with a per-sheet `A2` ("C
 the connection string — an empty `A2` is ignored rather than read as a named connection, so those
 formulas are argument-less and the rules above apply to them. Fill `A2` in and the formulas that
 reference it move to that TWS instance together; the ones that do not reference it stay where they were, so check
-the formulas on every sheet before pointing a workbook at a second TWS.
+the formulas on every sheet before pointing a workbook at a second TWS. That is also the moment
+argument-less status cells elsewhere in the workbook go `#AMBIGUOUS-CONNECTION`: filling one sheet's
+`A2` creates the second connection.
 
 ### Data-state fields: positions and orders
 
@@ -1307,6 +1339,15 @@ These are addressed by bare name, with no `status` argument:
 =RTD("Tws.Rtd",, "TWSAPI_STATE")
 ```
 
+The one-field-per-cell rule applies here too: a metadata field answers for the whole add-in, so any
+other argument fails the cell loud (a trailing connection reference or blank cell is still fine).
+
+`LICENSE_DAYS_REMAINING` is blank unless a trial is running. If a trial *is* running but StreamXLS
+could not read its end date — usually a firewall or VPN blocking the licensing server — that cell
+reads `#N/A` rather than a number, and `LICENSE_MESSAGE` says the end date is unknown. StreamXLS
+never guesses a date: it will not tell you a trial that just started ends today, and it will not
+hand a countdown formula a zero it made up.
+
 A metadata formula resolves once, when it is first subscribed, and two families are exceptions. The
 `LICENSE_*` fields re-resolve around the initial verification window, so a formula entered while
 entitlement was still being checked updates once the definitive state lands. `LICENSE_*` and
@@ -1341,6 +1382,16 @@ Updates are offered, never forced. A licensed copy may keep running an old build
 - The engine composes the notice text itself from fixed phrasing — a plain `Update available
   (x.y.z).`, or a louder `IMPORTANT: a critical update (x.y.z) is available - install it before
   continuing.` for a critical update.
+- **"No update available" and "nobody has checked" are different answers, and StreamXLS gives you
+  different cells for them.** `UPDATE_AVAILABLE` and `UPDATE_CRITICAL` read `0` only when a check
+  actually completed and found nothing newer. Until then — a fresh install before its first check,
+  a computer where the scheduled task could not be registered, a machine that cannot reach the
+  update server — both read `#N/A`, and `UPDATE_MESSAGE` explains why and names the remedy that fits
+  your computer: the Control Panel's *Check for updates* button where an automatic check is
+  registered, and the download page where none is. A check older than two weeks is treated the same way: rather
+  than quote a stale answer back to you, StreamXLS says it does not know. Guard the cells with
+  `IFERROR()` or `ISNA()` if you would rather hide the `#N/A`; what StreamXLS will not do is tell
+  you that you are current when nothing has checked.
 - To install, the Control Panel downloads the signed installer, verifies its signature, and — after
   you approve — launches it and closes itself so the files can be replaced. Updates apply only
   when Excel is closed; an update never hot-swaps under you mid-session.
@@ -1439,15 +1490,18 @@ lapse will surface as `#N/A`.
   If any other formula is still on the message well after `LICENSE_STATE` reads `Paid` or `Trial`,
   re-enter it.
 
-(During the very first seconds of a session, while the license is still being verified for the
-first time, data formulas briefly show `#N/A` rather than the message — a normal startup transient
-that clears as soon as verification completes.)
+### Bought during your trial, but the sheet still says Trial?
 
-### Disconnect and reconnect: what each formula family does
+If you purchase and activate while your free trial is still running, an Excel instance that was already open
+can keep reporting `LICENSE_STATE` = `Trial` (and the trial's `LICENSE_MESSAGE`) for up to six
+hours. Nothing is wrong and no data is affected — a running trial withholds nothing, so the
+every-10-minutes re-check that clears a *blocked* sheet does not apply, and the engine has no
+reason to hurry. Restart Excel to see `Paid` immediately, or let the periodic re-check catch up.
 
-When the connection to TWS drops (or TWS reports a data-connectivity loss), formulas fail loud
-rather than freeze on old numbers. The exact behavior depends on the request family. On reconnect,
-StreamXLS re-requests everything automatically — you do not need to touch your formulas.
+## Disconnect and reconnect: what each formula family does
+
+When the connection to TWS drops (or TWS reports a data-connectivity loss), some formulas fail loud
+rather than preserving stale values. The exact behavior depends on the request family and your settings.
 
 ### Market-data formulas on disconnect
 
@@ -1664,6 +1718,22 @@ that the socket port in TWS matches the port your formulas use — the default i
 The StreamXLS Control Panel shows license state, connection state, and the log location. File
 logging is off by default — turn it on there before reproducing the problem; the log then records
 the reason for any withheld or errored topic.
+
+### Cells read "StreamXLS could not find the TWS API"
+
+StreamXLS does not ship the TWS API — it binds to the copy installed on your machine — and it cannot
+find one. Both families withhold until it does: data cells read `#N/A`, and status cells carry that
+message, so the sheet says why rather than leaving you to guess.
+
+Install the TWS API from
+[interactivebrokers.github.io](https://interactivebrokers.github.io/), or, if it is
+already installed somewhere the auto-detect misses, point **StreamXLS Control Panel → Settings → TWS
+API location** at the API folder or its `CSharpAPI.dll` — see
+[The TWS API location](#the-tws-api-location). Restart Excel afterwards: StreamXLS locates the API
+once per Excel session, so an API installed while Excel is open is not seen until the next start.
+
+`=RTD("Tws.Rtd",, "TWSAPI_STATE")` reads `NotFound` here and `Ok` once the API resolves — the
+quickest confirmation that a fix took.
 
 ### A cell shows #N/A
 

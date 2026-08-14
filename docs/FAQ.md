@@ -62,6 +62,12 @@ A live or paper IBKR account with API access enabled (TWS or IB Gateway). The se
 
 API permissions, trusted-IP configuration, and master-client-ID setup follow the standard guidance in the [TWS API documentation](https://www.interactivebrokers.com/campus/ibkr-api-page/twsapi-doc/). These prerequisites apply to StreamXLS in the same way they apply to any TWS API client.
 
+## Why do `BIDSIZE` and `ASKSIZE` read 0 on liquid US stocks?
+
+Because Interactive Brokers is sending sizes in **round lots**, and an inside quote of fewer than 100 shares truncates to zero. In TWS/IB Gateway *Global Configuration → API → Settings*, checkbox "Send market data in lots for US stocks for dual-mode API clients" — IBKR marks it *(Not recommended)* — divides `BIDSIZE`, `ASKSIZE` and `LASTSIZE` by 100 and rounds down, so a 40-share bid reports `0`. A separate box, "Send volumes in lots from all market data sources for US stocks", does the same to `VOLUME`: a session that traded 74.3 million shares reports `742,668`. The two are independent, so sizes in shares alongside volume in lots is possible — verify both. StreamXLS reports what TWS sends.
+
+The price beside a `0` size is still live: the zero means "under one round lot", not "no quote" (a genuinely absent quote returns `#N/A`). Clear a checkbox to receive share counts instead — those fields then return values 100× larger. Details: [Size and volume units](reference.md#size-and-volume-units).
+
 ## What versions of Windows / Excel / TWS are supported?
 
 Windows 10 / 11, Microsoft Excel for Windows (desktop, 32- or 64-bit), .NET Framework 4.8 (present by default on modern Windows), Interactive Brokers' current TWS / IB Gateway.  You must also install the [**TWS API**](https://interactivebrokers.github.io/) — version **10.47.01** is the current minimum.

@@ -61,6 +61,7 @@ You can trade some of it away deliberately — turn on **StreamXLS Control Panel
 - Leave the second argument empty. Excel reserves it as the *Server* argument for its own use — StreamXLS never sees it. ([Why](manual.md#the-server-argument-second-parameter).)
 - Everything after that are "topics" — a topic family argument (`status`, `account`, `order`, `orders`, `position`, `positions`, `StageOrder`) followed by that family's arguments. Market data takes no family argument: you name the contract directly.
 - Topics and field names are case-*in*sensitive — `"status", "IsConnected"` and `"STATUS", "isconnected"` return the same value.
+- One field per cell for `status` and the bare-name metadata fields (`VERSION`, `LICENSE_STATE`, …): these answer for the whole connection or add-in, so beyond a connection reference a formula that names one takes no other argument — extras fail the cell loud.
 
 ### Connection specifications
 
@@ -75,7 +76,7 @@ You can trade some of it away deliberately — turn on **StreamXLS Control Panel
 
 Why at the end: `position` and `positions` read the *first* argument after the topic as the `{Accounts}` filter, and a connection reference ahead of it goes wrong either way — a blank one is swallowed as the account filter, pushing your real account into the contract slot; a named one (`paper`, `gw`, `host=…`) is recognized as a connection but does not fill the account slot, so on `position` the contract slides into it and the field into the contract slot. The first case shows an error; the second can parse clean and leave the formula on `#N/A` for a position you never asked for. (`orders` is immune — it strips connection references before reading the account filter — but keeping the reference last means one rule covers every family. [Details](manual.md#connection-parameters).)
 
-Formulas without one use the default, `127.0.0.1:7496` — with one exception. A `status` formula that names no connection piggybacks StreamXLS's sole connection when there is exactly one; with two or more, or with none created yet, it uses the default. The choice is made when the formula is first subscribed and does not change afterwards. (Ref: [which connection a status cell reads](manual.md#which-connection-a-status-cell-reads).)
+Formulas without one use the default, `127.0.0.1:7496` — with one exception. A `status` formula that names no connection piggybacks StreamXLS's sole connection when there is exactly one; with two or more, or with none created yet, it uses the default. The choice is made when the formula is first subscribed. A formula that took the default keeps it; a formula that piggybacked stops answering — `#AMBIGUOUS-CONNECTION` — if a second connection is ever created, rather than go on reporting one connection out of several without saying which. (Ref: [which connection a status cell reads](manual.md#which-connection-a-status-cell-reads).)
 
 ## Market data
 
@@ -298,7 +299,7 @@ Field definitions are in [reference.md §8](reference.md#8-position-list-and-opt
 
 ## Connection status
 
-`=RTD("Tws.Rtd",, "status", "{field}")` reports what StreamXLS knows about one connection to TWS — which one depends on the connection argument, and on the workbook, per [Which connection a status cell reads](manual.md#which-connection-a-status-cell-reads).
+`=RTD("Tws.Rtd",, "status", "{field}")` reports what StreamXLS knows about one connection to TWS — which one depends on the connection argument, and on the workbook, per [Which connection a status cell reads](manual.md#which-connection-a-status-cell-reads). With a single TWS you can leave the connection argument off. In a workbook that ever reaches two connections, name the connection in every status formula: an argument-less cell that had piggybacked the first one reports `#AMBIGUOUS-CONNECTION` instead of answering for a connection you never chose.
 
 ```excel
 =RTD("Tws.Rtd",, "status", "IsConnected")
@@ -326,22 +327,22 @@ Field definitions are in [reference.md §8](reference.md#8-position-list-and-opt
 | `LastPositionListChangeUtc` | UTC time the set of open symbols last changed. |
 | `LastPositionUpdateUtc` | UTC time of the last position callback, membership change or not. |
 | `RotationCount` | How many times this connection has automatically rotated its client ID. |
-| `UPDATE_AVAILABLE` | `1` when a newer StreamXLS release is available, else `0`. |
-| `UPDATE_CRITICAL` | `1` when that update is marked critical, else `0`. |
+| `UPDATE_AVAILABLE` | `1` when a newer StreamXLS release is available, `0` when a check has run and found none, `#N/A` when no completed check is on record. |
+| `UPDATE_CRITICAL` | `1` when that update is marked critical, `0` when it is not, `#N/A` on the same terms. |
 | `UPDATE_LATEST_VERSION` | The latest available version. |
-| `UPDATE_MESSAGE` | Update guidance text. |
+| `UPDATE_MESSAGE` | Update guidance text — including why the status is unknown, when it is. |
 
 Notes on individual fields:
 
 - `LastUpdateUtc` and `ServerHeartbeatUtc` are Excel date-time values in UTC, not text — an unformatted cell shows the underlying serial number, so format the cell as a date/time. Compare them with date arithmetic, not text functions, and mind the zone: `NOW()` is your local clock.
 - `IsConnected` refers to the connection between StreamXLS and TWS, not between Excel and StreamXLS.
 - `ServerHeartbeatUtc` advances on every status pass the server runs. Excel's heartbeat usually drives that pass, and Excel owns its cadence, which can vary with Excel's activity; connection events stamp it too, and if you disable the Excel heartbeat or raise it above Excel's floor the engine runs its own cadence instead. What it never tracks is TWS: it advances whether or not TWS is answering.
-- `ConnectionKey` reports the connection this formula bound to, as `host:port:clientId`. Read it rather than infer it — a status formula naming no connection binds to one you never named, and the choice is frozen at first subscription. It is a report, not a connection argument: an automatically assigned client ID is not part of the connection's identity, so pasting the value back into a formula names a different connection.
+- `ConnectionKey` reports the connection this formula bound to, as `host:port:clientId`. Read it rather than infer it — a status formula naming no connection binds to one you never named, and it stays there (if it had piggybacked the only connection and a second one appears, the cell reports `#AMBIGUOUS-CONNECTION` instead of quietly answering for one of them). It is a report, not a connection argument: an automatically assigned client ID is not part of the connection's identity, so pasting the value back into a formula names a different connection.
 - `MarketDataType` is the tier StreamXLS *requests* via `TWS_RTD_MARKET_DATA_TYPE` (default 4): 1=REALTIME, 2=FROZEN, 3=DELAYED, 4=DELAYED_FROZEN. TWS serves each contract at the best tier your subscriptions allow, so check the per-contract `MarketDataType` or `IsDelayed` field to see what a given symbol is getting. See [Market data](#market-data).
 - `AccountsCSV` is populated from the TWS `managedAccounts` callback during the connection handshake (e.g. `DU123456,DU789012`). In Excel 365, `TEXTSPLIT` spills it:
   - Across columns: `=TEXTSPLIT(RTD("Tws.Rtd",, "status", "AccountsCSV"), ",")`
   - Down rows: `=TEXTSPLIT(RTD("Tws.Rtd",, "status", "AccountsCSV"), , ",")`
-- `ServerVersion`, `MarketDataState`, and `MarketDataMessage` are per-connection diagnostics — each TWS connection negotiates its own protocol level, so if connecting to multiple TWS or IB Gateway instances from the same workbook, supply a [connection argument](manual.md#connection-parameters) (e.g. `paper`, `gw`, or `host=`/`port=`) to confirm which one you want the status for; with a single connection, omit it and the status piggybacks that connection — but only while StreamXLS has exactly one connection. `MarketDataState` is `Ok` when the negotiated protocol can stream market data (`ServerVersion` >= 206), `TooOld` when it cannot (1–205), `Unknown` before a version is negotiated.
+- `ServerVersion`, `MarketDataState`, and `MarketDataMessage` are per-connection diagnostics — each TWS connection negotiates its own protocol level, so if connecting to multiple TWS or IB Gateway instances from the same workbook, supply a [connection argument](manual.md#connection-parameters) (e.g. `paper`, `gw`, or `host=`/`port=`) to confirm which one you want the status for; with a single connection, omit it and the status piggybacks that connection — but only while StreamXLS has exactly one connection, after which such a cell reports `#AMBIGUOUS-CONNECTION` instead of diagnosing one connection out of several. `MarketDataState` is `Ok` when the negotiated protocol can stream market data (`ServerVersion` >= 206), `TooOld` when it cannot (1–205), `Unknown` before a version is negotiated.
 - `ConfigWarnings` and the four `UPDATE_*` fields re-resolve on every heartbeat, so a subscribed cell picks up a mid-session change without re-entering the formula. The update fields only read a local file and do not calls over the network.
 
 ### Data-state and freshness topics
@@ -367,7 +368,7 @@ first order formula is subscribed it reads `Disconnected`, even while the connec
 
 **The two update stamps are not symmetric, on purpose:**
 
-- `LastOrderUpdateUtc` is a **change** stamp. It advances when TWS reports order information that changed something StreamXLS tracks — a new order, a status or fill move, an order dropping out of the open-order snapshot. StreamXLS re-polls open orders every 15 seconds by default, and a poll that re-delivers the same orders unchanged leaves this cell alone.
+- `LastOrderUpdateUtc` is a **change** stamp. It advances whenever TWS reports order information that changes a value StreamXLS can put in a cell — a new order, a status or fill move, an order dropping out of the open-order snapshot, and any modification to an order field you can subscribe to (price, quantity, time in force, account, the order flags, and the rest). Read it as "order news arrived, re-read" rather than "this exact cell differs": nothing you could see in a cell is missed, and the stamp does occasionally move for news that ends up displaying the same way. StreamXLS re-polls open orders every 15 seconds by default, and a poll that re-delivers the same orders unchanged leaves this cell alone.
 - `LastPositionUpdateUtc` is a **freshness** stamp. It advances on every position callback StreamXLS accepts, whether the numbers moved or not. TWS pushes positions rather than answering a poll, so an unchanged re-delivery is itself evidence the feed is alive.
 
 Because `LastOrderUpdateUtc` is change-gated, it cannot tell a quiet market from a stopped feed — both look like a cell that is not moving. `LastOrderPollUtc` answers that question instead: it advances on every completed open-orders round trip, so while the order feed is healthy it keeps moving on the poll interval, and it freezes if TWS stops answering. A staleness alarm on the *feed* belongs on `LastOrderPollUtc`; an alarm on your *orders* belongs on `LastOrderUpdateUtc`.
@@ -393,9 +394,9 @@ A short list of fields is addressed by bare name — three arguments, no family 
 | Fields | Report |
 |---|---|
 | `VERSION`, `BUILD_TIME`, `SERVER_PATH`, `CONFIGURATION`, `ASSEMBLY_NAME` | Which StreamXLS build is loaded, and from where. |
-| `LICENSE_STATE`, `LICENSE_MESSAGE`, `LICENSE_DAYS_REMAINING` | Entitlement state, and days left while on trial. |
+| `LICENSE_STATE`, `LICENSE_MESSAGE`, `LICENSE_DAYS_REMAINING` | Entitlement state, and days left while on trial — `#N/A` if a trial is running but its end date could not be read, never a guessed number. |
 | `TWSAPI_STATE`, `TWSAPI_MESSAGE`, `TWSAPI_VERSION` | Which TWS API copy StreamXLS resolved, and actionable guidance when it could not. |
-| `UPDATE_AVAILABLE`, `UPDATE_CRITICAL`, `UPDATE_LATEST_VERSION`, `UPDATE_MESSAGE` | Whether a newer release is out. |
+| `UPDATE_AVAILABLE`, `UPDATE_CRITICAL`, `UPDATE_LATEST_VERSION`, `UPDATE_MESSAGE` | Whether a newer release is out — `#N/A` on the flags if no completed update check is on record for this computer, never a guessed "you are current". |
 
 `TWSAPI_VERSION` is the field to read when quotes are missing but orders and positions work — it reports the version of the TWS API actually in use, which is what the version floor is measured against. It is empty when no version could be detected; `TWSAPI_MESSAGE` says why.
 
@@ -412,6 +413,7 @@ Start here when a cell does not show what you expect. The deeper per-family rule
 | `#N/A` in a data cell while `IsConnected` = 1 | No value has arrived yet, or none is available | Ensure you can access the requested value in TWS. |
 | Orders and positions update, quotes do not | The TWS API is too old to carry market data | Check `MarketDataState` and `MarketDataMessage`, then update the TWS API to 10.47.01 or newer. |
 | `#LEDGER-DISABLED …` in a per-currency account cell | Per-currency account values need a TWS setting | Enable **Global Configuration → API → Settings → "Prepend `$LEDGER-` prefix to per-currency account values"**, then reconnect. |
+| `#AMBIGUOUS-CONNECTION …` in a `status` cell | The formula names no connection, it had piggybacked the only one, and a second connection now exists | Add a connection argument (`paper`, `gw`, `host=`, `port=`) so the cell names the TWS you mean. See [which connection a status cell reads](manual.md#which-connection-a-status-cell-reads). |
 | `RTD error: Unknown order field 'FOO'` | A misspelled order field | Check the spelling against fields listed in [reference.md §5](reference.md#5-order-read-fields). |
 | `#VALUE!` in arithmetic on a price | Delayed-data annotation is on, so the cell holds text | Strip it with `=VALUE(SUBSTITUTE(A1," (delayed)",""))`, or turn annotation off. |
 | `Disarmed: workbook reopen does not re-stage orders…` | A saved `StageOrder` formula — reopening a workbook does not re-stage | Re-enter the formula (F2, Enter) to stage deliberately. See [Staging orders](#staging-orders). |
