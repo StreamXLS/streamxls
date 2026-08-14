@@ -5,7 +5,11 @@
     "no-trailing-punctuation": false,
     "fenced-code-language": false,
     "first-line-heading": false,
-    "no-inline-html": false
+    "no-inline-html": false,
+    // MD028: consecutive `>` callouts separated by a blank line are house style in the manual
+    // (several short, independent notes under one topic, each its own box) and MD028 is not
+    // auto-fixable, so the docs port's isolated auto-fix pass cannot converge without this.
+    "no-blanks-blockquote": false
   },
   "globs": [
     "**/*.md",
