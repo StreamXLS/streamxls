@@ -1,7 +1,7 @@
 # StreamXLS
 
 **Stream Interactive Brokers data into Excel with native `=RTD()` formulas.**
-Market data, account values, orders, positions with live P&L — StreamXLS is a production-grade component that makes it easy to bring realtime Interactive Brokers data into Excel.  Watch the [72-second demo](https://vimeo.com/1191256765).
+Market data, account values, orders, positions with live P&L — StreamXLS is a production-grade component that makes it easy to bring realtime Interactive Brokers data into Excel.
 
 ![StreamXLS streaming live Interactive Brokers data into Excel](docs/img/Streaming.webp)
 
