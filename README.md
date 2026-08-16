@@ -3,7 +3,9 @@
 **Stream Interactive Brokers data into Excel with native `=RTD()` formulas.**
 Market data, account values, orders, positions with live P&L — StreamXLS is a production-grade component that makes it easy to bring realtime Interactive Brokers data into Excel.  Watch the [72-second demo](https://vimeo.com/1191256765).
 
-*StreamXLS is closed-source commercial software; this repository hosts its signed installer releases, documentation, and issue tracker — [more below](#what-this-repository-is).*
+![StreamXLS streaming live Interactive Brokers data into Excel](docs/img/Streaming.webp)
+
+*StreamXLS is closed-source commercial software; this repository hosts its signed installer releases, documentation, discussions, and issue tracker — [more below](#what-this-repository-is).*
 
 ## Documentation
 
@@ -24,6 +26,7 @@ Market data, account values, orders, positions with live P&L — StreamXLS is a 
 
 StreamXLS is closed-source commercial software.  This repository maintains the signed releases, documentation, and feedback.
 
+- Questions and how-tos: [GitHub Discussions](https://github.com/StreamXLS/streamxls/discussions) — answers stay public and searchable, so the next person with the same question finds them.
 - Bug reports and feature requests: [GitHub Issues](https://github.com/StreamXLS/streamxls/issues). Account or license issues: email support instead — those usually involve details that shouldn't be public.
 - Commercial inquiries (source license, integration partnership, OEM redistribution) and pre-sales questions: [sales@streamxls.com](mailto:sales@streamxls.com).
 - Customer support: [support@streamxls.com](mailto:support@streamxls.com) — we aim to respond within one US business day.
