@@ -35,7 +35,7 @@ StreamXLS is a separate, independent implementation of the same `IRtdServer` COM
 =RTD("Tws.Rtd",,"StageOrder","sym=AAPL","side=BUY","shares=100","type=LMT","limit=150.05","exch=SMART")
 ```
 
-By default a staged order arrives in TWS **deactivated** — visible in the TWS order list with a **Submit** button, and released to the market only when you click it there; `park=true` instead stages an invisible `Transmit=false` ticket that TWS shows only in its order-entry row, released with **Transmit**. Either way, nothing reaches the market without a human action in TWS (see [Formula states and lifecycle](manual.md#formula-states-and-lifecycle)).
+By default a staged order arrives in TWS **deactivated** — visible in the TWS order list (to every TWS session on the account, and it survives a TWS restart) with a **Submit** button, and released to the market only when you click it there; `park=true` instead stages a local order-entry ticket — visible in the parking user's own TWS order list with a **Transmit** button, but not seen by other TWS instances or the API until you transmit it. Either way, nothing reaches the market without a human action in TWS. Staging requires TWS's **Read-Only API** setting to be off (*File → Global Configuration → API → Settings*). Details: [Staging orders](manual.md#staging-orders-stageorder).
 
 ## How are TWS client IDs allocated across multiple Excel instances?
 
@@ -60,7 +60,7 @@ A live or paper IBKR account with API access enabled (TWS or IB Gateway). The se
 | TWS | `7496` | `7497` |
 | IB Gateway | `4001` | `4002` |
 
-API permissions, trusted-IP configuration, and master-client-ID setup follow the standard guidance in the [TWS API documentation](https://www.interactivebrokers.com/campus/ibkr-api-page/twsapi-doc/). These prerequisites apply to StreamXLS in the same way they apply to any TWS API client.
+In TWS or IB Gateway, *File → Global Configuration → API → Settings*: enable **ActiveX and Socket Clients**, confirm the **Socket Port**, and — only if you want `StageOrder` to draft order tickets in TWS — disable **Read-Only API** (staged tickets still need your click in TWS to transmit). API permissions, trusted-IP configuration, and master-client-ID setup follow the standard guidance in the [TWS API documentation](https://www.interactivebrokers.com/campus/ibkr-api-page/twsapi-doc/). These prerequisites apply to StreamXLS in the same way they apply to any TWS API client.
 
 ## Why do `BIDSIZE` and `ASKSIZE` read 0 on liquid US stocks?
 
@@ -70,7 +70,7 @@ The price beside a `0` size is still live: the zero means "under one round lot",
 
 ## What versions of Windows / Excel / TWS are supported?
 
-Windows 10 / 11, Microsoft Excel for Windows (desktop, 32- or 64-bit), .NET Framework 4.8 (present by default on modern Windows), Interactive Brokers' current TWS / IB Gateway.  You must also install the [**TWS API**](https://interactivebrokers.github.io/) — version **10.47.01** is the current minimum.
+Windows 10 / 11; desktop Microsoft Excel for Windows — Microsoft 365 or Office 2016+, 32- or 64-bit. RTD is a Windows capability, so Excel for Mac, Excel on the web, and mobile Excel are not supported. You must also install the [**TWS API**](https://interactivebrokers.github.io/) — version **10.47.01** is the current minimum.
 
 ## How does pricing work?
 

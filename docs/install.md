@@ -2,7 +2,12 @@
 
 The authoritative, step-by-step install and first-run guide — with SmartScreen and signature-verification screenshots — is at **[streamxls.com/download](https://streamxls.com/download)** and **[streamxls.com/docs](https://streamxls.com/docs)**. This page is a summary.
 
-**Requirements:** Windows 10 / 11 · Microsoft Excel for Windows (32- or 64-bit) · .NET Framework 4.8 (present by default on modern Windows) · TWS or IB Gateway with API access enabled · **[TWS API](https://interactivebrokers.github.io/) v10.47.01** or newer.
+**Requirements:**
+
+- Windows 10 / 11
+- Microsoft Excel for Windows (32- or 64-bit)
+- Interactive Brokers [TWS](https://www.interactivebrokers.com/en/trading/download-tws.php) or [IB Gateway](https://www.interactivebrokers.com/en/trading/ibgateway-latest.php)
+- **[TWS API](https://interactivebrokers.github.io/) v10.47.01** or newer.
 
 ## Install
 

@@ -212,7 +212,7 @@ Common keys (case-insensitive) — the complete set of contract keys, with every
 |-----|---------|-------------|
 | `sym` | `symbol` | Underlying symbol |
 | `sec` | `sectype`, `securitytype` | Security type (`STK`, `OPT`, `FUT`, `FOP`, `CASH`, `IND`, …) |
-| `exch` | `exchange` | Routing exchange (`SMART` for the universal router) |
+| `exch` | `exchange` | Routing exchange (`SMART` for the universal router). Routing a US *stock or warrant* to a venue directly needs an entitlement — see [Exchange-direct routing for US stocks](#exchange-direct-routing-for-us-stocks) |
 | `prim` | `primary`, `primexch`, `primaryexch`, `primaryexchange` | Primary listing exchange — disambiguates SMART-routed symbols |
 | `cur` | `curr`, `currency` | Currency (`USD`, `EUR`, `GBP`, …) |
 | `exp` | `expiry`, `expiration`, `lasttradedate` | Expiration — `YYYYMMDD` for options (`20261218`), or the contract month `YYYYMM` for futures (`202612`) |
@@ -254,26 +254,35 @@ fails loud instead.
 Use `@` for exchange and `/` as delimiter:
 
 ```excel
-=RTD("Tws.Rtd",, "AAPL@NASDAQ/STK/USD", "BID")
+=RTD("Tws.Rtd",, "AAPL@SMART/NASDAQ/STK/USD", "BID")
 =RTD("Tws.Rtd",, "ES@CME/FUT/202612/USD", "LAST")
 =RTD("Tws.Rtd",, "SPY@SMART/OPT/20261218/C/680/USD", "BID")
 ```
 
 Format: `SYMBOL@EXCH[/PRIMEXCH]/SECTYPE[/EXP][/RIGHT][/STRIKE][/CURRENCY]`
 
+The first example routes through `SMART` and names `NASDAQ` as the *primary* (listing) exchange —
+which is how you tell StreamXLS which AAPL you mean without asking TWS to trade on NASDAQ directly.
+Routing a US stock directly to a venue is a different request with a consequence attached; see
+[Exchange-direct routing for US stocks](#exchange-direct-routing-for-us-stocks) below before you
+write one.
+
 After the security type, segments are read by shape, not by position — StreamXLS recognizes an
 expiry, a right, a strike, and a currency by their form, so you can omit any of them, including ones
-in the middle. `AAPL@NASDAQ/STK/USD` omits the primary exchange and the option segments;
+in the middle. `AAPL@SMART/STK/USD` omits the primary exchange and the option segments;
 `ES@CME/FUT/202612/USD` omits the right and strike. Add a primary exchange as an extra segment right
-after the exchange when you need one: `AAPL@SMART/NASDAQ/STK/USD`.
+after the exchange when you need one, as the first example does.
 
-One trap: the security type itself is positional — the first segment after the exchange (or
-after the primary exchange, if you gave one) is *always* read as the security type. So if you
-specify a primary exchange, a security type must immediately follow it: `AAPL@SMART/NASDAQ/STK`
-works, but `AAPL@SMART/NASDAQ` sets `SecType=NASDAQ` and `AAPL@SMART/NASDAQ/USD` sets `SecType=USD` —
-neither resolves. (StreamXLS treats a segment as a primary exchange only when a recognized security
-type follows it.) Spell the security type exactly. If a compact string does not resolve the contract
-you expect, use the unambiguous `key=value` form.
+One rule: the security type itself is positional — the first segment after the exchange (or
+after the primary exchange, if you gave one) is *always* read as the security type, and StreamXLS
+treats a segment as a primary exchange only when a security type follows it. So if you specify a
+primary exchange, a security type must immediately follow it: `AAPL@SMART/NASDAQ/STK` works, while
+`AAPL@SMART/NASDAQ` and `AAPL@SMART/NASDAQ/USD` put `NASDAQ` and `USD` where the security type goes
+and are refused with a message that names the segment, the accepted types and the spelling to use
+(`AAPL@SMART/NASDAQ/STK`, `AAPL@SMART/NASDAQ/STK/USD`) rather than being sent to TWS as a contract
+that cannot resolve. Spell the security type exactly (`STK`, `OPT`, `FUT`, `FOP`, `CASH`, `IND`,
+`BOND`, `CFD`, `CRYPTO`, `FUND`, `CMDTY`, `WAR`, and the other TWS security types). If a compact
+string does not resolve the contract you expect, use the unambiguous `key=value` form.
 
 Omitting a segment is fine; writing one and leaving it *empty* is not. `BHP@ASX/STK` omits the
 currency and works; `"BHP@ASX/STK/"&B2` with `B2` blank writes a currency segment with nothing in it
@@ -358,6 +367,60 @@ Those are SPY and AAPL. Verify any ConID in TWS before you paste it into a live 
   ```
 
 - Programmatically — the TWS API `reqContractDetails` call.
+
+### Exchange-direct routing for US stocks
+
+Naming an exchange sends the request to that venue directly. For most contracts that is exactly what
+you want — futures and FX have no `SMART` route at all, which is why `ES@CME` and `EUR.USD/CASH` are
+written the way they are. **For US stocks it is different, and StreamXLS refuses it by default.**
+
+Requesting a US stock direct from an exchange your IBKR account has no *real-time* market-data
+subscription for makes TWS stop delivering that symbol's trade and volume data — last price, last
+size, volume, and the day's open, high, low and close — for the rest of the TWS session. Bid and ask
+keep flowing, so nothing announces it. It affects TWS's own watchlists as well as your workbook, and
+it takes just one such request. **Pressing `Ctrl+Alt+F` in TWS** (Simulate Market Data Disconnect)
+clears it without a restart.
+
+So `AAPL@NASDAQ`, `AAPL@NASDAQ/STK/USD`, `"sym=AAPL", "exch=ARCA"` and `XYZ@NYSE/WAR/USD` all return
+an error explaining this instead of quoting. Nothing is sent to TWS, so no session is ever damaged by
+a formula you typed. The venues covered are the ones IBKR itself publishes as carrying US stocks —
+the lit exchanges, and also its OTC books (`PINK`, `OTCLNKECN`, `ARCAEDGE`) and overnight
+destinations (`OVERNIGHT`, `IBEOS`), which are included because a request that turns out to need an
+entitlement costs you a silent session, while one refused unnecessarily costs you a message and a
+setting. Warrants are covered alongside stocks for the same reason: IBKR lists them on most of those
+same venues, so a warrant routed direct shares the venue, the feed and the entitlement with a stock
+routed direct.
+
+A `conid=` or `loc=` says which contract you mean without saying what kind it is, so it is treated by
+the venue it names. On a venue that carries only stocks (`NASDAQ`, `NYSE`, `ARCA`, `IEX`, …) it is
+refused like the spellings above. On the eight that also carry options — `AMEX`, `BATS`, `CBOE`,
+`EDGX`, `ISE`, `MEMX`, `PEARL`, `PHLX` — it is far likelier to be an option, which cannot cause any
+of this, so it goes out as written; add `"sectype=STK"` beside it if you want a stock request refused
+there too.
+
+What to write instead:
+
+- **`AAPL`, or `AAPL@SMART`** — SMART routing, the normal way to quote a US stock.
+- **`AAPL@SMART/NASDAQ/STK/USD`** — when you were naming NASDAQ to say *which* AAPL, not to route
+  there. The second segment is the primary (listing) exchange, and it disambiguates without
+  routing. It has to be the exchange the symbol is *listed* on: `AAPL@SMART/ARCA/STK/USD` is
+  rejected by TWS, because AAPL lists on NASDAQ. Venues that route orders without listing anything
+  — `NYSEFLOOR`, `OVERNIGHT`, `IBEOS`, `OTCLNKECN`, `ARCAEDGE`, and the pure execution venues —
+  cannot go in that slot at all; use plain `AAPL`.
+- **`SPX@CBOE/IND`** — if the contract was never a stock. A formula that names no security type is
+  read as a stock, so `SPX@CBOE` is refused as one; saying `/IND` (or `/OPT`, with its expiry,
+  right and strike) takes it out of scope entirely.
+
+If you do hold an exchange's real-time subscription, name it in the `TWS_RTD_DIRECT_ROUTE_VENUES`
+setting — venues separated by commas, semicolons or spaces, e.g. `CBOE` or `NASDAQ,CBOE` — and
+requests to those exchanges go out as written. There is no wildcard: each venue is a separate
+assertion that you hold its subscription, and an entry that is not a US stock venue opts nothing in
+(it is reported in the `CONFIGWARNINGS` status field). It is settable as an environment variable or
+in your config file; see [Advanced: environment variables](#advanced-environment-variables). The
+setting is read when a formula is first calculated, so adding an exchange does not repaint cells that
+were already refused: re-enter those formulas, or restart Excel. Every other security type, non-USD
+contracts (`BHP@ASX/STK/AUD`), venues that are not US stock venues (`PHT.ESC@VALUE`), and `SMART` are
+all unaffected and need no setting.
 
 ## Blank arguments: three rules
 
@@ -1897,17 +1960,21 @@ are the tested values. Leave any you do not recognize at its default.
 | `TWS_RTD_UPDATE_NOTIFY_MIN_MS` | **Update-notify min interval (ms)** | `0` | Diagnostic — leave default. Minimum interval between update-notify attempts. |
 | `TWS_RTD_UPDATE_NOTIFY_PENDING_STALE_MS` | **Update-notify pending-stale (ms)** | `1000` | Diagnostic — leave default. Window after which a pending topic is treated as stale. |
 
-Environment only — no Control Panel surface. These are diagnostic; leave them at their defaults
-unless support asks you to change one.
+Environment only — no Control Panel surface. Set these as environment variables, or as keys in your
+config file. All but the first are diagnostic; leave those at their defaults unless support asks you
+to change one.
 
 | Variable | Default | Purpose |
 |---|---|---|
+| `TWS_RTD_DIRECT_ROUTE_VENUES` | (empty) | US stock exchanges you hold a real-time exchange-direct market-data subscription for, separated by commas, semicolons or spaces (`CBOE`, `NASDAQ,CBOE`). No wildcard; an entry that is not a US stock venue opts nothing in and is reported in `CONFIGWARNINGS`. Empty — the default — means every exchange-direct US stock or warrant request is refused with an explanation instead of being sent. See [Exchange-direct routing for US stocks](#exchange-direct-routing-for-us-stocks). |
 | `TWS_RTD_POSITION_REQUEST_TIMEOUT_MS` | `8000` | Diagnostic. Re-issue the positions request when a snapshot stalls this long; 0 disables. Disabling it also disables `TWS_RTD_POSITION_RECONNECT_AFTER_RETRIES`, which counts those re-requests — `ConfigWarnings` says so. |
 | `TWS_RTD_POSITION_REQUEST_MAX_RETRIES` | `-1` | Diagnostic. Max positions re-requests per stuck episode; -1 unlimited. |
 | `TWS_RTD_POSITION_STALE_TIMEOUT_MS` | `30000` | Diagnostic. Flip stuck position values to `#N/A` after this long; 0 disables. Independent of the two keys above. |
 | `TWS_RTD_POSITION_RECONNECT_AFTER_RETRIES` | `4` | Diagnostic. Force a full reconnect after this many futile re-requests; 0 disables. Has no effect when `TWS_RTD_POSITION_REQUEST_TIMEOUT_MS` is 0 (nothing counts the re-requests). |
+| `TWS_RTD_POSITION_ESCALATION_QUIET_MS` | `15000` | Diagnostic. Before that reconnect, StreamXLS checks how far behind its own inbound data is running. Where the liveness probe has timed a recent round trip, that timing decides; this window is the fallback where it has not (a workbook with no market-data formulas never probes). If TWS delivered anything at all within this window, the connection is working and the position data is only slow, so it is left alone. After ten minutes with no position data the reconnect happens regardless. 0 skips the check. |
 | `TWS_RTD_MD_LIVENESS_PROBE_MS` | `20000` | Diagnostic. How long a liveness probe may go unanswered on a socket still reporting connected before that counts as a miss; it also spaces the probes, one per window. 0 disables the probe. |
 | `TWS_RTD_MD_LIVENESS_MISSES` | `2` | Diagnostic. How many consecutive unanswered probes force a full reconnect — the way out of a TWS socket that reports connected while quotes sit frozen. Any inbound traffic resets the count. 0 disables the probe; 1 is raised to 2. |
+| `TWS_RTD_MD_LIVENESS_RTT_WARN_MS` | `5000` | Diagnostic. The liveness probe times how long its own round trip takes, which is how far behind the market StreamXLS is running. A round trip at or above this writes one warning to the log, and one more when it recovers. It is also the figure the positions check above compares against, allowing one probe window of margin. 0 records the timing without warning. |
 | `STREAMXLS_CONFIG_FILE` | `%LOCALAPPDATA%\StreamXLS\config.json` | Location of the config file; read from the environment only. |
 
 The engine validates every value you supply, clamps or falls back when one is out of range, and
