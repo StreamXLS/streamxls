@@ -1495,30 +1495,24 @@ What is not instant is StreamXLS *noticing*. Entitlement is re-checked about eve
 your licence is granting data, so a lapse can be up to that long in reaching the sheet; restart
 Excel to force a check immediately. (An unreachable licence server is a different case — see below.)
 
-A brief license-server outage does not instantly blank your dashboard. There is a difference
-between a *definitive* result (the license genuinely expired or was revoked — data is withheld at
-once) and an *indeterminate* one (the license server is unreachable, so entitlement cannot be
-confirmed right now). On an indeterminate outage, a machine that was already verified keeps
-serving data through a bounded retention window of up to 72 hours measured from its
-last confirmed check; only if the server is still unreachable past that window do the formulas flip
-to the license message. (A different failure — the local license component itself breaking, e.g.
-quarantined by antivirus — carries a longer grace on a paid license.) A transient verification
-hiccup therefore rides through without interrupting live data.
+A license-server outage does not blank your dashboard. Once a machine has activated a license,
+StreamXLS holds a local license token and re-syncs it with the license server in the background. If
+the server cannot be reached, that token keeps data flowing for up to 30 days from the last
+successful sync; only past that do data formulas flip to a *could not verify — reconnect* message,
+and they resume within about ten minutes of the server becoming reachable again (immediately on an
+Excel restart). **If the license server is unreachable while everything else is online,** allow-list
+`api.cryptlex.com` in your firewall or VPN.
 
-**The Control Panel raises a Windows notification before any of this happens.** It does so as your
-free trial approaches its end — roughly a week out, then three days, then the day before, then on
-the last day — and, once StreamXLS is at risk of losing the ability to verify your license, about a
-week, three days and one day before verification runs out. That second case is the one where
-reconnecting, or allowlisting `api.cryptlex.com` through a firewall or VPN, is all that is needed.
-At most one such notification appears per day, whatever else happens; a license that has already
-lapsed is announced once and then not repeated. StreamXLS never warns about a healthy paid
-subscription approaching its renewal date, because that date simply moves forward each time you
-renew. To turn the reminders off entirely, open the Control Panel and clear **Remind me before my
-trial or license expires** in the License status box; the setting takes effect immediately and any
-notification already showing is withdrawn. Two separate switches govern these: that checkbox is
-StreamXLS's own, and Windows' per-app notification setting for StreamXLS silences them whatever the
-checkbox says. A reminder that came due while Windows notifications were switched off for StreamXLS
-counts as delivered — it is not replayed if you switch them back on later.
+**StreamXLS attempts to raise a Windows notification before any of this happens** — at most one per day:
+
+- On a free trial: roughly 7 days before it ends, then 3 days, 1 day, and the last day.
+- When the license server has been unreachable: 7 days, 3 days and 1 day before the 30-day window
+  closes. `LICENSE_MESSAGE` also carries a "reconnect within N days" note over those last three days.
+
+A license that has already lapsed is announced once and not repeated. A paid subscription in good
+standing gets no countdown: its expiry date simply moves forward with each renewal.
+
+To disable these reminders, open the StreamXLS Control Panel and clear **Remind me before my trial or license expires** in the License status box; the setting takes effect immediately and any notification already showing is withdrawn. Two separate switches govern these: that checkbox is StreamXLS's own, and Windows' per-app notification setting for StreamXLS silences them whatever the checkbox says. (A reminder that came due while Windows notifications were switched off for StreamXLS counts as delivered — it is not replayed if you switch them back on later.)
 
 ### The formula hazard: license text landing in numeric cells
 
