@@ -863,8 +863,11 @@ StreamXLS automatically aggregates positions across multiple accounts. When a po
 `"sym=SPY;sec=OPT;strike=680;right=C"` with no `exp=` matches the 680 call at every expiration you
 hold, and an aggregate `MarketValue` returns their total — not one option's value. `Position` and
 the three P&L fields sum the same way, and `AverageCost` returns a size-weighted blend of the matched
-contracts — which means nothing when they are not the same instrument. Name `exp=` or `conid=`
-whenever you mean one contract. The single-account form never rolls up: it fails loud instead, as
+contracts — which means nothing when they are not the same instrument. Adjusted and other
+non-standard-multiplier contracts roll into that same `Position` sum and `AverageCost` blend by raw
+contract count, even though `MarketValue` and the P&L fields already carry each contract's own
+multiplier; the tell is the `Multiplier` cell, which fails loud on the mismatch instead of picking
+one. Name `exp=` or `conid=` whenever you mean one contract. The single-account form never rolls up: it fails loud instead, as
 **Pin the contract to exactly one position** below describes. Contract-metadata fields fail loud in
 both forms — an aggregate `ConID` matching two contracts returns `Ambiguous position ...`, never one
 of the two.
@@ -903,7 +906,8 @@ Example — option position metadata:
 **Pin the contract to exactly one position.** A single-account `position` request does not
 aggregate — it must resolve to one holding. Hold SPY 680 calls at three expirations and omit `exp=`,
 and the spec matches all three: rather than pick one, the formula returns a loud
-`Ambiguous position ...` error naming the matched contract IDs. It never guesses, so a `ConID` read
+`Ambiguous position ...` error naming the matched contract IDs (or `Missing ConID` for a position
+TWS has not yet identified). It never guesses, so a `ConID` read
 off the wrong expiration can never reach a combo leg. Add contract detail — or a `conid=` — until
 exactly one position matches, and the value fills. The error clears on its own once the ambiguity
 resolves (you close all but one of the matching positions, or narrow the spec).
@@ -966,7 +970,9 @@ Four keys are computed by StreamXLS rather than passed through: `OpenPositionCou
 a non-zero size or market value), and `DailyPNL`, `RealizedPNL`, and `UnrealizedPNL`, which come from the P&L feed. Those
 three P&L names also work per position — see [Position topics](#position-topics). (`RealizedPNL` and
 `UnrealizedPNL` still honor the per-currency setting below: with it off they fail loud with
-`#LEDGER-DISABLED` like the other dual-class keys.)
+`#LEDGER-DISABLED` like the other dual-class keys.) For some account types TWS never serves the
+account-level P&L feed — FA fee accounts are the observed case (IBKR ticket #213079) — so those
+three cells stay `#N/A` for such an account; the per-position P&L fields still work.
 
 ### Available accounts
 
@@ -1030,6 +1036,10 @@ different client reports `orderId` 0 — which is why nothing here is addressed 
 Name the field you want. The field vocabulary is a closed set — an
 unknown field fails loud in the cell rather than returning a blank you might read as a zero. The
 full list, with aliases, is in [reference.md §5](reference.md#5-order-read-fields).
+
+`AvgFillPrice` is also populated for orders that were already filled or cancelled when StreamXLS
+connected, from the day's execution reports — so reopening a workbook after the close still shows each
+order's average. The cases that stay `#N/A` are listed in [reference.md §5](reference.md#5-order-read-fields).
 
 ### One cancel word in staged cells
 
@@ -1476,8 +1486,7 @@ update notices, and the like.
 ### When your license or trial lapses mid-session
 
 If your trial ends, a subscription lapses, or the license simply cannot be verified while Excel
-is open, data formulas stop showing data and instead show a short license message — a line of
-*text*, for example:
+is open, data formulas stop showing data and instead show a *text* license message like the following:
 
 - `StreamXLS trial expired — purchase at https://streamxls.com/buy; activate in StreamXLS Control Panel; data resumes automatically after activation (restart Excel to re-check immediately).`
 - `StreamXLS license expired — renew at https://streamxls.com/buy; data resumes automatically after renewal (restart Excel to re-check immediately).`
@@ -1578,13 +1587,35 @@ this list.
 - Everything else keeps its last value on a socket disconnect. `CLOSE`, `OPEN`, `HIGH`,
   `LOW`, `VOLUME`, `MARKETPRICE`, `LASTORCLOSE`, and the rest retain their last-seen value when
   the socket drops.
-- **Error 1100 blanks every market-data formula on the connection** (TWS lost its data connection to IBKR) → `#N/A`.
+- **Error 1100 blanks every market-data formula on the connection except `MARKETPRICE` and
+  `LASTORCLOSE`** (TWS lost its data connection to IBKR) → `#N/A`.
   When TWS reports a data-connectivity loss, the API↔TWS socket stays up (so `IsConnected` may
   still read `1`), but no quotes can be current — so StreamXLS flips all market-data topics to
-  `#N/A`, including the keep-last families above (`CLOSE`/`OPEN`/`HIGH`/`LOW`/`VOLUME`/
-  `MARKETPRICE`/`LASTORCLOSE` and a frozen `LAST`). This is deliberately stronger than a socket
-  disconnect: nothing may keep serving a stale number while TWS is cut off from the market. Values
-  update automatically when connectivity is restored (error 1101/1102).
+  `#N/A`, including the keep-last families above (`CLOSE`/`OPEN`/`HIGH`/`LOW`/`VOLUME` and a
+  frozen `LAST`). This is deliberately stronger than a socket disconnect: nothing may keep serving
+  a stale number while TWS is cut off from the market. Values update automatically when
+  connectivity is restored (error 1101/1102).
+  **The two derived prices are the exception.** `MARKETPRICE` and `LASTORCLOSE` exist to always
+  give you the most recent price available, outage or not, so they hold their value through a 1100
+  as they do through a socket disconnect. If you need a cell that goes loud the moment data stops
+  being current, read `LAST`, `BID`/`ASK`, or `CLOSE` instead — every one of those still does.
+- **How the cells refill depends on which restore TWS sends**, and the difference matters most for
+  `LAST`, `LASTORCLOSE`, and `MARKETPRICE`:
+  - **Error 1102, "connectivity restored — data maintained".** TWS is telling us the data it held
+    through the outage is still current, so the `LAST` from just before the outage goes back into
+    the cell as soon as TWS starts serving the contract again (`LASTORCLOSE`/`MARKETPRICE` have
+    been showing it all along). That trade's own details come back with it — `LASTSIZE`, `LASTTIME`, and
+    `LASTEXCH` — so `LASTTIME` still tells you how old the restored price is. `VOLUME` and the
+    quote fields (`BID`/`ASK`) are not restored: they describe something other than that one
+    trade, and they refill from TWS's next tick. Any fresh tick that arrives first wins; nothing
+    is restored across a trading-day boundary, and nothing that TWS retracted while the uplink
+    was down comes back. On a delayed (unentitled) feed the same applies to the delayed values,
+    and the real-time-named cells they feed.
+  - **Error 1101, "connectivity restored — data lost", and ordinary socket reconnects.** TWS is
+    telling us its data is gone, so the pre-outage trade is discarded and `LAST` stays `#N/A` until
+    the name trades again. `LASTORCLOSE`/`MARKETPRICE` keep the price they were already showing;
+    the session's `CLOSE` (which StreamXLS holds across the outage, because IBKR sends it only once
+    per session) fills them only where they had no price to begin with.
 
 ### Positions, account, and PnL formulas on disconnect
 
@@ -1801,6 +1832,7 @@ quickest confirmation that a fix took.
 | No real-time subscription, and TWS fell back to delayed data | Nothing — the cell is waiting for its first delayed tick, which outside market hours can be a long wait. No message appears for the fallback itself; check `=RTD("Tws.Rtd",, "{contract}", "IsDelayed")` or `"MarketDataType"` for the tier TWS is serving. |
 | The contract specification is wrong | Verify every parameter against the contract in TWS |
 | The market is closed and that tick type is not being published | Use `MarketPrice` instead of `LAST` as an after-hours fallback |
+| A cell that *was* showing a number went `#N/A` | TWS withdrew the value — it answered "no value for this field right now", most often at a session reset (yesterday's high or open is no longer the answer, today's does not exist yet) or at the close, where the bid, ask and last withdraw as a price/size pair. StreamXLS shows that answer rather than keeping the old number, and repaints as soon as a real value arrives. `MarketPrice` / `LastOrClose` follow their inputs: a withdrawn input takes them with it when it is the one that produced the number they were showing, and where another input (a trade, a quote, the previous close) can still answer, the cell refills from that in the same update. |
 | Something went wrong upstream | Check TWS itself for error messages |
 | A TWS outage, with **Preserve values on disconnect** off (the default) | Nothing — this is the fail-loud default working. Account, P&L, position and order cells show `#N/A` while disconnected rather than a stale number. To keep last-known values on screen instead, turn on **StreamXLS Control Panel → Settings → Preserve values on disconnect** (environment variable `TWS_RTD_PRESERVE_ON_DISCONNECT=true`). Values repaint when data returns; a cell that never had a value stays `#N/A`. |
 | Too many market-data cells open at once | You have hit your IBKR market-data line limit; the cells over the limit show "Max tickers reached" (or `#N/A`), while cells already streaming are unaffected. Reduce the distinct market-data symbols on screen, or raise your line allowance. See [The market-data line limit](#the-market-data-line-limit). |
@@ -1871,7 +1903,8 @@ For an `#N/A` that should be a holding:
 1. Widen the filter one field at a time — drop `exch=`, then `cur=`, until the formula returns a
    value; whichever field you removed is the one that was not matching. Then put the full
    specification back. If you widen too far — loose enough to match two holdings under one account —
-   the formula returns a loud `Ambiguous position ...` error naming the matched contract IDs, not a
+   the formula returns a loud `Ambiguous position ...` error naming the matched contract IDs (or
+   `Missing ConID` for a position TWS has not yet identified), not a
    number: for a single account, `position` must resolve to exactly one contract and never guesses
    which. Narrow the spec (or use `conid=`, which matches exactly one contract) until one position
    matches.
@@ -1965,7 +1998,7 @@ to change one.
 | `TWS_RTD_POSITION_REQUEST_MAX_RETRIES` | `-1` | Diagnostic. Max positions re-requests per stuck episode; -1 unlimited. |
 | `TWS_RTD_POSITION_STALE_TIMEOUT_MS` | `30000` | Diagnostic. Flip stuck position values to `#N/A` after this long; 0 disables. Independent of the two keys above. |
 | `TWS_RTD_POSITION_RECONNECT_AFTER_RETRIES` | `4` | Diagnostic. Force a full reconnect after this many futile re-requests; 0 disables. Has no effect when `TWS_RTD_POSITION_REQUEST_TIMEOUT_MS` is 0 (nothing counts the re-requests). |
-| `TWS_RTD_POSITION_ESCALATION_QUIET_MS` | `15000` | Diagnostic. Before that reconnect, StreamXLS checks how far behind its own inbound data is running. Where the liveness probe has timed a recent round trip, that timing decides; this window is the fallback where it has not (a workbook with no market-data formulas never probes). If TWS delivered anything at all within this window, the connection is working and the position data is only slow, so it is left alone. After ten minutes with no position data the reconnect happens regardless. 0 skips the check. |
+| `TWS_RTD_POSITION_ESCALATION_QUIET_MS` | `15000` | Diagnostic. Before that reconnect, StreamXLS checks how far behind its own inbound data is running. Where the liveness probe has timed a recent round trip, that timing decides; this window is the fallback where it has not (a workbook with no market-data formulas never probes). If TWS delivered anything at all within this window, the connection is working and the position data is only slow, so it is left alone. After five minutes with no position data the reconnect happens regardless. 0 skips the check. |
 | `TWS_RTD_MD_LIVENESS_PROBE_MS` | `20000` | Diagnostic. How long a liveness probe may go unanswered on a socket still reporting connected before that counts as a miss; it also spaces the probes, one per window. 0 disables the probe. |
 | `TWS_RTD_MD_LIVENESS_MISSES` | `2` | Diagnostic. How many consecutive unanswered probes force a full reconnect — the way out of a TWS socket that reports connected while quotes sit frozen. Any inbound traffic resets the count. 0 disables the probe; 1 is raised to 2. |
 | `TWS_RTD_MD_LIVENESS_RTT_WARN_MS` | `5000` | Diagnostic. The liveness probe times how long its own round trip takes, which is how far behind the market StreamXLS is running. A round trip at or above this writes one warning to the log, and one more when it recovers. It is also the figure the positions check above compares against, allowing one probe window of margin. 0 records the timing without warning. |
