@@ -171,7 +171,7 @@ Examples:
 
 Notes on initial load:
 
-- StreamXLS holds back the first `SymbolsCsv` and `ConIdCsv` until the initial positions snapshot completes (the TWS API `positionEnd` callback) — you get the whole list or nothing, not a partial one. Until then those cells are blank, which is what the `IFERROR` guard above is for. Watch `PositionDataState` to tell waiting from broken: `Requested` or `Receiving` while the snapshot is in flight, `Ready` once it lands.
+- StreamXLS holds back the first `SymbolsCsv` and `ConIdCsv` until the initial positions snapshot completes (the TWS API `positionEnd` callback) — you get the whole list or nothing, not a partial one. Until then those formulas return `#N/A`, which is what the `IFERROR` guard above is for.  A cash-only account shows blank once the snapshot has landed. Watch `PositionDataState` to tell waiting from broken: `Requested` or `Receiving` while the snapshot is in flight, `Ready` once it lands.
 - After the snapshot, subsequent membership changes publish immediately.
 
 ## Position data
@@ -411,7 +411,7 @@ Start here when a cell does not show what you expect. The deeper per-family rule
 | `#N/A` everywhere, including `status` cells | Excel has not loaded StreamXLS | Restart Excel — a newly installed build only loads on restart. |
 | `IsConnected` = 0 | The server is running but TWS is not reachable | Confirm TWS or IB Gateway is logged in, has its API socket enabled, and that the port matches what you list in the connection fields of your RTD formulas. |
 | `#N/A` in a data cell while `IsConnected` = 1 | No value has arrived yet, or none is available | Ensure you can access the requested value in TWS. |
-| Orders and positions update, quotes do not | The TWS API is too old to carry market data | Check `MarketDataState` and `MarketDataMessage`, then update the TWS API to 10.47.01 or newer. |
+| Orders and positions update, quotes do not | Either the TWS API is too old to carry market data, or TWS is refusing those contracts | Check `MarketDataState`. `TooOld` — update the TWS API to 10.47.01 or newer, per `MarketDataMessage`. `Ok` — the version is fine, and the quote cells themselves carry the reason; the common one is [another session on the same IBKR user holding the market-data line](manual.md#quotes-stopped-but-the-connection-is-healthy). |
 | `#LEDGER-DISABLED …` in a per-currency account cell | Per-currency account values need a TWS setting | Enable **Global Configuration → API → Settings → "Prepend `$LEDGER-` prefix to per-currency account values"**, then reconnect. |
 | `#AMBIGUOUS-CONNECTION …` in a `status` cell | The formula names no connection, it had piggybacked the only one, and a second connection now exists | Add a connection argument (`paper`, `gw`, `host=`, `port=`) so the cell names the TWS you mean. See [which connection a status cell reads](manual.md#which-connection-a-status-cell-reads). |
 | `RTD error: Unknown order field 'FOO'` | A misspelled order field | Check the spelling against fields listed in [reference.md §5](reference.md#5-order-read-fields). |

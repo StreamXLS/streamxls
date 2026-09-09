@@ -943,9 +943,13 @@ out), not a size change or a price tick — so a portfolio that has not traded h
 earlier in the session, and that is the intended reading. The stamp is connection-wide: it is never
 scoped by any one cell's account filter.
 
-Both list fields are blank — not `#N/A` — until the first positions snapshot from TWS completes, so a
-partial portfolio is never published as if it were the whole one. If they stay blank, the snapshot
+Both list fields return `#N/A` until the first positions snapshot from TWS completes. Once the snapshot lands
+the cells fill; a genuinely empty portfolio then shows as blank. If they stay `#N/A`, the snapshot
 has not landed; check `=RTD("Tws.Rtd",, "status", "PositionDataState")`.
+
+They return to `#N/A` on a disconnect and fill again from the reconnect's snapshot — the same
+fail-loud rule as every other position formula, and subject to the same **Preserve values on
+disconnect** setting.
 
 ---
 
@@ -1021,8 +1025,10 @@ Both return a comma-separated list of permIds, and both take an optional account
 An account-filtered list contains only the orders TWS attributes to one of the named accounts. An order submitted to an advisor *group* rather than a single account (the "All" account, for example) carries no account attribution, so it appears in the unfiltered list and in no account-filtered one — the same reason its `Account` field reads `#N/A` and `FAGroup` names the group instead.
 
 A `permId` is the unique identifier every `order` subscription requires. It is TWS's *permanent order ID*: stable across
-sessions and across API clients. The short per-client order id is not — an order placed by a
-different client reports `orderId` 0 — which is why nothing here is addressed that way.
+sessions and across API clients. The short per-client order id is not: for an order placed by a
+different client TWS reports an `orderId` of 0 on the wire, and StreamXLS publishes that as `#N/A` rather
+than a `0` that would read like a real id — so `ORDERID` cannot identify such an order, which is why
+nothing here is addressed that way.
 
 ### Reading one order
 
@@ -1523,6 +1529,23 @@ standing gets no countdown: its expiry date simply moves forward with each renew
 
 To disable these reminders, open the StreamXLS Control Panel and clear **Remind me before my trial or license expires** in the License status box; the setting takes effect immediately and any notification already showing is withdrawn. Two separate switches govern these: that checkbox is StreamXLS's own, and Windows' per-app notification setting for StreamXLS silences them whatever the checkbox says. (A reminder that came due while Windows notifications were switched off for StreamXLS counts as delivered — it is not replayed if you switch them back on later.)
 
+### "Accept the StreamXLS licence agreement…" — a Windows account that has not accepted yet
+
+Every Windows user account accepts the licence agreement once. If StreamXLS was installed for all
+users — on a shared machine, or on a pre-built cloud image — the person who installed it accepted for
+themselves only, so your account has not accepted yet and no trial has started for it. Your data
+formulas show:
+
+- `Accept the StreamXLS licence agreement in the StreamXLS Control Panel (Start menu → StreamXLS) to start your 30-day trial.`
+
+and `LICENSE_STATE` reads `AssentRequired`.
+
+Open **Start menu → StreamXLS → StreamXLS Control Panel**, read the agreement and click **I accept**.
+If you decline, the Control Panel closes and StreamXLS keeps serving no data; open it again whenever you want to accept.
+
+If you installed StreamXLS yourself and accepted the agreement during installation, you will never
+see this: your acceptance was recorded for your account at that moment.
+
 ### The formula hazard: license text landing in numeric cells
 
 The license message is text, and it lands in cells your formulas expect to be numbers. Excel
@@ -1548,6 +1571,8 @@ lapse will surface as `#N/A`.
   stranded either: StreamXLS records each blocked formula and re-registers it automatically when
   entitlement returns. While data is withheld the license is re-checked at least every 10 minutes,
   so a renewed license clears the sheet within about that long — restart Excel if you want it sooner.
+  (The one state that clears faster is `AssentRequired`, above: it is re-checked about every fifteen
+  seconds, because accepting the agreement is something you do in another window while watching Excel.)
 - One exception, by design: an order-staging formula is never replayed, because re-registering it
   would stage the order minutes or hours later, on a market that has moved. A staging formula
   blocked during the lapse keeps the license message until you re-enter it (F2, Enter) — the
@@ -1578,15 +1603,41 @@ this list.
 - Bid/Ask family → immediate `#N/A`. `BID`, `ASK`, their sizes and exchanges, and the
   delayed and odd-lot variants all go to `#N/A` the moment the connection is down. A bid or ask
   that is not current is never shown as if it were live.
+- Anything that describes the market **right now** → immediate `#N/A`, in every tier. A halt
+  indicator, a shortability, an auction's indicative price or imbalance, a trades-per-minute or
+  volume-per-minute rate, a short-term (3/5/10-minute) volume, a live mark price, an indicative IPO
+  midpoint, a live ETF NAV, an index-future premium, an implied-volatility estimate for the
+  underlying: nobody has observed any of these since the
+  connection dropped, and a `HALTED` of `0` left on screen would assert that the contract is trading
+  normally on no information at all. These cells fail loud until the data returns. (The full list is
+  in [reference.md](reference.md#disconnect-behavior-the-na-class).)
+- Option computations → immediate `#N/A`, in every tier. All four groups — `BID`, `ASK`, `LAST` and
+  `MODEL` (`BIDDELTA`, `BIDOPTPRICE`, `BIDUNDPRICE`, `BIDIMPLIEDVOL`, `MODELDELTA`, `MODELUNDPRICE`
+  and the rest) — are computed from a book that belongs to the session that has just ended:
+  `BIDUNDPRICE` is the underlying price used in the bid computation, `BIDOPTPRICE` the option price
+  implied by that same bid, and `MODELUNDPRICE` an underlying price nobody has observed since your
+  connection dropped. Keeping any of them would leave a price on screen that nothing current
+  supports. This holds in every tier, **including the frozen tiers where `LAST` itself keeps its
+  last value** (see the next bullet): opting into a stale last *price* is not opting into greeks
+  computed off it. A last trade is a completed fact that cannot become false; a delta, theta or
+  implied volatility is a model reading *as of a moment*, with the underlying's price and the clock
+  as inputs — and neither of those is frozen by your tier. So on the default settings a socket drop
+  can leave `LAST` holding beside `LASTDELTA` reading `#N/A`; that is deliberate. `OPTIONHISTORICALVOL` and `RTHISTORICALVOL` are 30-day realized-volatility
+  statistics over elapsed history and keep their last value; `OPTIONIMPLIEDVOL` — IB's 30-day
+  at-market implied-volatility estimate for the underlying, computed from current option prices —
+  reads `#N/A` with the rest of the live standing state.
 - Last-trade formulas depend on your market-data tier. `LAST` (and `DELAYEDLAST`) go to `#N/A`
   on a socket disconnect only under the real-time and delayed tiers. Under the *frozen* tiers —
   including DelayedFrozen, the default — a frozen last price is an explicit opt-in to
   last-known values, so `LAST` keeps its last-seen value across a socket disconnect. So with
   default settings, `LAST` holds; if you configure a real-time or (non-frozen) delayed tier, it
   goes `#N/A`.
-- Everything else keeps its last value on a socket disconnect. `CLOSE`, `OPEN`, `HIGH`,
-  `LOW`, `VOLUME`, `MARKETPRICE`, `LASTORCLOSE`, and the rest retain their last-seen value when
-  the socket drops.
+- Everything else keeps its last value on a socket disconnect, because in each case that value is a
+  fact about something that has already happened: the last trade's size, venue and timestamp; this
+  session's `OPEN`, `HIGH`, `LOW`, `CLOSE`, `VOLUME` and trade counts (a session's facts do not change
+  because your connection dropped); the 13/26/52-week ranges and average volumes; open interest; the
+  two historical volatilities (statistics over elapsed history); contract reference data; and
+  `MARKETPRICE` / `LASTORCLOSE`, which exist to always show the most recent price available.
 - **Error 1100 blanks every market-data formula on the connection except `MARKETPRICE` and
   `LASTORCLOSE`** (TWS lost its data connection to IBKR) → `#N/A`.
   When TWS reports a data-connectivity loss, the API↔TWS socket stays up (so `IsConnected` may
@@ -1604,8 +1655,12 @@ this list.
   - **Error 1102, "connectivity restored — data maintained".** TWS is telling us the data it held
     through the outage is still current, so the `LAST` from just before the outage goes back into
     the cell as soon as TWS starts serving the contract again (`LASTORCLOSE`/`MARKETPRICE` have
-    been showing it all along). That trade's own details come back with it — `LASTSIZE`, `LASTTIME`, and
-    `LASTEXCH` — so `LASTTIME` still tells you how old the restored price is. `VOLUME` and the
+    been showing it all along). That trade's own details come back with it — `LASTSIZE`,
+    `LASTTIME`, and `LASTEXCH` — so `LASTTIME` still tells you how old the restored price is.
+    The exception is a trade IBKR *withdraws* during the outage: nothing brings that one back.
+    `LAST` and its three details stay `#N/A`, and `LASTORCLOSE` falls back to the session's
+    previous close on the next tick for the contract — `MARKETPRICE` too, unless it still has a
+    `BID` and `ASK` to average, in which case it goes on showing that midpoint. `VOLUME` and the
     quote fields (`BID`/`ASK`) are not restored: they describe something other than that one
     trade, and they refill from TWS's next tick. Any fresh tick that arrives first wins; nothing
     is restored across a trading-day boundary, and nothing that TWS retracted while the uplink
@@ -1625,6 +1680,14 @@ on screen during an outage, turn on **StreamXLS Control Panel → Settings → P
 disconnect** (environment variable `TWS_RTD_PRESERVE_ON_DISCONNECT=true`; default off). With
 the setting on, formulas hold their last-known values until reconnect updates them — except that a
 position confirmed *gone* on reconnect still flips to `#N/A` regardless of the setting.
+
+The setting holds each cell's *own* last-known value for as long as Excel keeps running. Reopening a workbook
+is a fresh start: if TWS is unreachable when the workbook opens, cells begin at `#N/A` and fill in when the
+connection comes up. What the setting also does not do is carry a number across an *edit*: if you type a new formula — or change an
+existing one to name a different account, position, order or contract — while the connection is down, the
+cell shows what StreamXLS holds for what the formula now asks for (a value, if another cell is already
+showing one for the same thing; otherwise `#N/A`), never the number that cell was showing before you
+edited it.
 
 ### Order formulas on disconnect
 
@@ -1654,7 +1717,10 @@ preserved) formula updates as its fresh value arrives.
 
 Two outcomes are not an update to a number, and both are correct. A working order that vanished
 during the outage is *resolved*, not stranded: StreamXLS asks TWS for its completed-order history
-and concludes the formula `Filled` or `Cancelled`. But anything TWS re-delivers in neither snapshot —
+and concludes the formula `Filled` or `Cancelled` (this needs TWS's **Read-Only API** setting off —
+see the [FAQ](FAQ.md#what-do-i-need-on-the-ibkr-side); with it on, TWS refuses that history
+query and the formula keeps its last known status until StreamXLS next reconnects with the setting
+off). But anything TWS re-delivers in neither snapshot —
 a position closed while you were disconnected, an order TWS reports as neither open nor completed —
 settles on `#N/A` and stays there. A stranded `#N/A` after a reconnect is the honest answer, not a
 stuck formula.
@@ -1738,8 +1804,10 @@ It does not keep the live numbers either: every quote, trade, daily-fact and der
 withdrawn live feed produced flips to `#N/A` and repaints as the delayed feed delivers it, because a
 live-era price sitting beside refreshing delayed prices is exactly the stale number StreamXLS refuses
 to show. Fields TWS keeps delivering under the fallback — `Shortable`, the 52-week range and the rest
-of the subscription-independent set — are untouched, and a formula that never had a live value simply
-waits at `#N/A` for its first delayed tick. The `IsDelayed` and `MarketDataType` fields report the
+of the subscription-independent set — are untouched: the connection is alive and TWS goes on sending
+them. A dropped connection is a different event, and several of those same fields do go `#N/A` there
+(see [Market-data formulas on disconnect](#market-data-formulas-on-disconnect)). A formula that never
+had a live value simply waits at `#N/A` for its first delayed tick. The `IsDelayed` and `MarketDataType` fields report the
 tier being served — see
 [Prices read "(delayed)" and dependent formulas broke](#prices-read-delayed-and-dependent-formulas-broke).
 
@@ -1864,6 +1932,71 @@ Solutions:
 
 1. Check TWS Account Management for data subscriptions
 2. Use delayed data: the tier is chosen at **StreamXLS Control Panel → Settings → Market data** (environment variable `TWS_RTD_MARKET_DATA_TYPE`), and defaults to Delayed, then frozen (4) — delayed data with automatic fallback, plus frozen last-session values when the market is closed. Pick Delayed (3) for plain delayed without the frozen behavior. Note the tier is what you *request*; TWS serves each contract at the best tier your subscriptions allow and reports it per contract — check `=RTD("Tws.Rtd",, "{contract}", "IsDelayed")` (1 = delayed) or `"MarketDataType"` (1-4). Some venues offer no delayed data at all (error 354): those symbols get no quotes without a subscription regardless of the requested tier.
+
+### Quotes stopped, but the connection is healthy
+
+Quote cells that were updating go dead on one or more contracts while everything else keeps working:
+`IsConnected` reads `1`, orders, positions and account values still update, and the affected cells read
+
+- `RTD error: No market data during competing live session`
+
+under the default error display, or a bare `#N/A` if you have set error display to `NA` (see
+[Error display: MESSAGE vs. NA](#error-display-message-vs-na)).
+
+Cause: IBKR licenses market data per user and streams it to one session at a time. Another session
+signed in to the same IBKR user is holding the line — TWS or IB Gateway on a second machine, IBKR
+Mobile, or Client Portal. A paper-trading session holds no market-data subscriptions of its own; it
+borrows the live user's, and only while the live user is not using them, so a paper session is the one
+that goes quiet when a live session appears anywhere. Switching to delayed data did not help in our
+tests.
+
+Nothing on the connection is broken, which is what makes this hard to place. The socket stays up, TWS
+keeps answering, and orders, positions, account values and P&L travel on separate paths that this does
+not touch. `MarketDataState` also reads `Ok` throughout — it reports whether the TWS API you are
+connected through is new enough to stream market data, and never whether data is arriving.
+
+Confirming it without reading a log: put the two connection timestamps on the sheet.
+
+```excel
+=RTD("Tws.Rtd",, "status", "LastUpdateUtc")
+=RTD("Tws.Rtd",, "status", "ServerHeartbeatUtc")
+```
+
+If the heartbeat keeps advancing while `LastUpdateUtc` stands still, the connection is alive and market
+data specifically is not arriving. **That test is only valid when every cell on that connection is
+market data.** `LastUpdateUtc` is stamped by every publish that carries data — account, order and
+position updates included — and it answers for one connection, so on a connection that also serves
+accounts or orders it keeps advancing right through a market-data outage. On a mixed sheet, read the
+quote cells themselves instead: under the default error display they carry TWS's own sentence.
+
+What StreamXLS does about it:
+
+- Every cell on the refused contract carries that sentence for as long as the refusal is in effect. A
+  repeat of the same refusal refreshes the message rather than wiping it, and a column you add to the
+  contract afterwards reads the same sentence as its neighbours.
+- The message clears on its own the moment TWS starts sending prices for that contract again, and the
+  quote cells fill from the new data. `CLOSE` and `OPEN` come back with them where TWS had already
+  sent them this session — TWS sends today's open once, so that cell would otherwise stay `#N/A`
+  until the next trading day, however long the refusal lasted. Nothing in Excel has to be touched.
+- StreamXLS keeps asking. It re-requests a refused contract three times at five-minute intervals, then
+  once an hour for as long as the refusal lasts, rather than giving up for the rest of the session.
+  Each re-request blanks the cells on that contract to `#N/A` for the few seconds it takes TWS to
+  answer. While the refusal stands, the sentence comes straight back.
+
+Solutions, in increasing order of disruption:
+
+1. Close the other session — sign out of the TWS, IB Gateway, IBKR Mobile or Client Portal session
+   that is using the same IBKR user. Data comes back by itself, usually within a few minutes of that
+   session going away, and the message clears with it.
+2. Let TWS reconnect. If data has not returned after the other session is gone, any socket drop, TWS
+   restart or IBKR uplink blip makes StreamXLS re-request everything from scratch.
+3. Re-enter the formulas: delete **every** cell on that contract, let Excel recalculate, then retype
+   them. Typing over a cell does not release the request — StreamXLS drops a contract's request only
+   when the last formula referring to it is gone, so editing one column of a six-column row leaves the
+   old request in place. Restarting Excel does the same thing more bluntly.
+
+To run both sessions at once you need a market-data arrangement that does not share one entitlement
+between the two logins. That is an IBKR account question rather than a StreamXLS setting.
 
 ### A StageOrder cell reads "Disarmed"
 

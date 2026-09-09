@@ -88,7 +88,7 @@ Clearing a checkbox switches its fields to share counts, and those cells then re
 | Field | Description |
 | --- | --- |
 | `MARKETPRICE` | Derived mid: `(BID+ASK)/2` when both present, else `LAST`, else `CLOSE`; blank until a source is available. Never rolls back, and is not blanked by an outage, on the same rules as `LASTORCLOSE`. |
-| `LASTORCLOSE` | LAST when available, otherwise CLOSE. Always shows the most recent price available, including through an outage: unlike every other market-data field, it is not blanked by a connection loss or by error 1100. Never rolls back — once a trade has been shown, the prior session's CLOSE does not replace it. The CLOSE fills the cell only when it is blank (nothing has priced it yet), and TWS delivering a settle from a later session displaces a held trade. |
+| `LASTORCLOSE` | LAST when available, otherwise CLOSE. Always shows the most recent price available, including through an outage: unlike every other market-data field, it is not blanked by a connection loss or by error 1100. Never rolls back — once a trade has been shown, the prior session's CLOSE does not replace it — the one exception is IBKR withdrawing the trade, after which the cell falls back to CLOSE. The CLOSE fills the cell only when it is blank (nothing has priced it yet), and TWS delivering a settle from a later session displaces a held trade. |
 
 ### Market data — data-tier indicators
 
@@ -153,9 +153,9 @@ Clearing a checkbox switches its fields to share counts, and those cells then re
 | `PUTOPTIONVOLUME` | Put option volume. |
 | `CALLOPTIONOPENINTEREST` | Call option open interest. |
 | `PUTOPTIONOPENINTEREST` | Put option open interest. |
-| `OPTIONHISTORICALVOL` | Option historical volatility. |
-| `RTHISTORICALVOL` | Real-time historical volatility (futures only). |
-| `OPTIONIMPLIEDVOL` | Option implied volatility. |
+| `OPTIONHISTORICALVOL` | 30-day historical volatility of the underlying (IB generic tick 104; stocks). |
+| `RTHISTORICALVOL` | 30-day real-time historical volatility (IB generic tick 411; futures only). |
+| `OPTIONIMPLIEDVOL` | IB's 30-day at-market implied-volatility estimate for the underlying, computed from option prices in two consecutive expirations (IB generic tick 106). |
 | `INDEXFUTUREPREMIUM` | Index future premium (indices only). |
 | `SHORTABLE` | Shortability indicator (higher = easier to borrow). |
 | `SHORTABLESHARES` | Number of shortable shares available. |
@@ -206,19 +206,21 @@ The four ETF NAV fields (`ETFNAVLAST`, `ETFFROZENNAVLAST`, `ETFNAVHIGH`, `ETFNAV
 
 ### Disconnect behavior (the #N/A class)
 
-On a TWS disconnect, market-data cells follow one of three rules, keyed off the *configured* market-data tier (`TWS_RTD_MARKET_DATA_TYPE`), not the per-request served tier.
+On a TWS disconnect, market-data cells follow one of five rules, keyed off the *configured* market-data tier (`TWS_RTD_MARKET_DATA_TYPE`), not the per-request served tier. The principle behind the split: a cell keeps its last value only when that value is a fact about something that has already happened. A value whose only honest reading is *as of now* has no honest reading while the connection is down, so it fails loud instead.
 
 - Quote family → #N/A in every tier. A standing bid/ask dies with the session that carried it, so every quote cell fails loud on disconnect regardless of tier: `ASK`, `ASKEXCH`, `ASKSIZE`, `BID`, `BIDEXCH`, `BIDSIZE`, `DELAYEDASK`, `DELAYEDASKSIZE`, `DELAYEDBID`, `DELAYEDBIDSIZE`, `ODDLOTASK`, `ODDLOTASKEXCH`, `ODDLOTASKSIZE`, `ODDLOTBID`, `ODDLOTBIDEXCH`, `ODDLOTBIDSIZE`.
+- Live standing state → #N/A in every tier. A halt flag, a shortability, an auction's indicative price or imbalance, a trailing-window rate or short-term volume, a live mark, an indicative IPO midpoint, a live ETF NAV, an index-future premium, an implied-volatility estimate for the underlying — each of these describes the market *right now*, and nobody has observed it since the connection dropped. A `HALTED` of 0 would assert that the contract is trading normally on no information at all, so instead these cells fail loud until the data returns: `AUCTIONIMBALANCE`, `AUCTIONPRICE`, `AUCTIONVOLUME`, `CREDITMANMARKPRICE`, `CREDITMANSLOWMARKPRICE`, `DELAYEDHALTED`, `ESTIMATEDIPOMIDPOINT`, `ETFNAVLAST`, `HALTED`, `INDEXFUTUREPREMIUM`, `OPTIONIMPLIEDVOL`, `PLPRICE`, `REGULATORYIMBALANCE`, `SHORTABLE`, `SHORTABLESHARES`, `SHORTTERMVOLUME10MIN`, `SHORTTERMVOLUME3MIN`, `SHORTTERMVOLUME5MIN`, `TRADERATE`, `VOLUMERATE`.
+- Option computations → #N/A in every tier. All four groups — `BID`, `ASK`, `LAST` and `MODEL`, each with implied volatility, delta, gamma, vega, theta, the option price, the PV of dividends, the underlying price and the tick attributes — are computed from a book that belongs to the session that has just ended. `BIDUNDPRICE` is the underlying price used in the bid computation and `BIDOPTPRICE` the option price implied by that same bid; `MODELUNDPRICE` is likewise an underlying price nobody has observed since the connection dropped. Keeping any of them would leave a price on screen that nothing current supports. This holds in every tier, including the frozen tiers where `LAST` itself keeps its last value: opting into a stale last PRICE is not opting into greeks computed off it. `OPTIONHISTORICALVOL` and `RTHISTORICALVOL` are 30-day realized-volatility statistics over elapsed history and keep their last value; `OPTIONIMPLIEDVOL` — IB's 30-day at-market implied-volatility estimate for the underlying, computed from current option prices — reads `#N/A` with the rest of the live standing state.
 - `LAST` / `DELAYEDLAST` → tier-dependent. Under the real-time (1) and delayed (3) tiers a stale last reads `#N/A` (you did not opt into last-known values); under the frozen (2) and delayed-frozen (4, the default) tiers it keeps its last-seen value (frozen tiers are the explicit opt-in to last-known values).
-- Everything else → keep-last. CLOSE, MARKETPRICE, LASTORCLOSE, VOLUME, the option greeks, and the last-trade attributes (LASTSIZE / LASTEXCH / LASTTIME) keep their last value regardless of tier — they are facts about a completed trade, not standing-quote state.
+- Everything else → keep-last, and each group keeps its value for a reason you can check: a fact about a **completed event** (the last trade's attributes LASTSIZE / LASTEXCH / LASTTIME, LASTRTHTRADE, FINALIPOLAST, and a frozen ETF NAV); a fact about **this session** (OPEN / HIGH / LOW / CLOSE / VOLUME, the trade and option-volume counts, the session NAV high and low — a session's facts do not change because the connection dropped); a statistic over **elapsed history** (the 13/26/52-week ranges, the average volumes) or a settled daily figure (open interest); the two historical volatilities (statistics over elapsed history); **contract reference data** (BONDMULTIPLIER, IBDIVIDENDS); and the two derived prices MARKETPRICE / LASTORCLOSE, which exist to always show the most recent price available.
 
-A TWS data-connectivity loss (error 1100) is stronger: every market-data cell goes `#N/A`, including the keep-last families, until connectivity returns.
+A TWS data-connectivity loss (error 1100) is stronger still: every market-data cell goes `#N/A`, keep-last families included, until connectivity returns. The two derived prices are the deliberate exception — `MARKETPRICE` and `LASTORCLOSE` exist to always show the most recent price available, so they hold their value through a 1100 exactly as they do through a socket disconnect.
 
 ### When TWS withdraws a value
 
 TWS answers "there is no value for this field right now" with a documented no-data marker instead of a number — most visibly at a session reset, when yesterday's high or open is no longer the answer and today's does not exist yet, and at the close, where the quote fields withdraw as a price/size pair. StreamXLS shows that answer as `#N/A`. The cell that was showing a number goes `#N/A` rather than keeping it: TWS is the source of truth, and a session high that does not yet exist must not read as yesterday's.
 
-This is not a price-fields-only rule. The same marker on a non-price field — an implied or historical volatility, a shortability or halt indicator, a trade or volume rate, a count — is read the same way and shows `#N/A`, never the marker itself as a number. The exceptions are the three fields whose value is genuinely signed, where a negative reading is data rather than an answer of "none": `INDEXFUTUREPREMIUM`, `AUCTIONIMBALANCE` and `REGULATORYIMBALANCE`. A zero on these fields is a reading, not a withdrawal — `HALTED` of 0 means not halted, and a count of 0 means none yet — with one caveat StreamXLS cannot resolve at its end: on the newer binary message format TWS may choose to send, a field delivered with no value at all arrives as a 0, indistinguishable from a real zero.
+This is not a price-fields-only rule. The same marker on a non-price field — an implied or historical volatility, a shortability or halt indicator, a trade or volume rate, a count — is read the same way and shows `#N/A`, never the marker itself as a number. The exceptions are the three fields whose value is genuinely signed, where a negative reading is data rather than an answer of "none": `INDEXFUTUREPREMIUM`, `AUCTIONIMBALANCE` and `REGULATORYIMBALANCE`. A zero on these fields is a reading, not a withdrawal — `HALTED` of 0 means not halted, and a count of 0 means none yet — with one caveat that still stands: on the newer binary message format TWS may choose to send, a field delivered with no value at all arrives as a 0, and StreamXLS cannot at present tell it from a real zero.
 
 Three consequences worth knowing. A field showing nothing yet is left alone — a withdrawal of nothing is not news, and a cell reading its delayed feed keeps reading it. The next genuine value repaints the cell normally; a withdrawal is not a latch. And a withdrawn input takes `MARKETPRICE` / `LASTORCLOSE` with it whenever the withdrawn field is the one that produced the number showing there — they do not go on quoting a price TWS has retracted. If another input can still answer (a trade, a quote, the previous close), the cell refills from that input in the same update rather than staying `#N/A`.
 
@@ -353,8 +355,8 @@ The `tag` key (aliases `nonce`, `seq`, `submit`, `clienttag`) is preserved verba
 | `STATUS` | — | Current order status (see [section 7](#7-order-status-vocabulary)). |
 | `FILLED` | — | Filled quantity. |
 | `REMAINING` | — | Remaining (unfilled) quantity. |
-| `AVGFILLPRICE` | — | Average fill price. Populated from TWS's live order status, and — for orders whose average the status stream never delivered, such as orders already complete when StreamXLS connected or orders placed and filled in TWS without ever appearing open to StreamXLS — from the day's execution reports, read when such an order is first reported complete. #N/A for an order with no fills; for a combo (BAG) order, whose execution reports are per leg; and for an order whose reported fills do not cover its filled quantity (e.g. one that filled across more than one day): a blank is shown rather than an average that might not cover every fill. |
-| `WHYHELD` | — | Reason the order is held, if any. |
+| `AVGFILLPRICE` | — | Average fill price. Populated from TWS's live order status, and — for orders whose average the status stream never delivered, such as orders already complete when StreamXLS connected or orders placed and filled in TWS without ever appearing open to StreamXLS — from the day's execution reports, read when such an order is first reported complete. #N/A for an order with no fills; for a combo (BAG) order, whose execution reports are per leg; and for an order whose reported fills do not cover its filled quantity: a blank is shown rather than an average that might not cover every fill. An order that filled across more than one day is covered — TWS's execution reports carry the order's running total and running average, so the report that completes it covers every fill. |
+| `WHYHELD` | — | Reason the order is held, if any. Currently always #N/A: the TWS API documents one value for this field — `locate`, for a short sale held while TWS locates shares — but as of TWS 10.50 it sends the field empty even while TWS itself displays the locate pending indicator for that order. |
 | `WARNINGTEXT` | — | TWS warning text for the order. |
 | `PERMID` | — | Permanent order ID (stable across sessions). |
 | `ORDERID` | — | Client order ID. |
@@ -370,13 +372,13 @@ The `tag` key (aliases `nonce`, `seq`, `submit`, `clienttag`) is preserved verba
 | `TRAILSTOPPRICE` | — | Trailing stop price. |
 | `TRAILINGPERCENT` | — | Trailing percent. |
 | `OCAGROUP` | — | One-cancels-all group name. |
-| `OCATYPE` | — | One-cancels-all type. |
+| `OCATYPE` | — | One-cancels-all type (1, 2 or 3). #N/A when the order is not in a one-cancels-all group. |
 | `DISPLAYSIZE` | — | Iceberg display size. |
 | `OUTSIDERTH` | — | Allow fills outside regular trading hours. |
 | `HIDDEN` | — | Hidden order flag. |
 | `GOODAFTERTIME` | — | Good-after time. |
 | `GOODTILLDATE` | — | Good-till date. |
-| `ALLOWPREOPEN` | — | Allow pre-open activation. |
+| `ALLOWPREOPEN` | — | True when the order was placed with Allow Pre-Open set; #N/A otherwise (an unset flag is not sent on the wire, and TWS builds before ServerVersion 216 have no slot for it). |
 | `SUBMITTER` | — | Order submitter. |
 | `MODELCODE` | — | Model code. |
 | `FAGROUP` | — | Financial-advisor group. |
@@ -392,18 +394,18 @@ The `tag` key (aliases `nonce`, `seq`, `submit`, `clienttag`) is preserved verba
 | `LMTPRICEOFFSET` | — | Limit price offset. |
 | `ACTIVESTARTTIME` | — | Order active-start time. |
 | `ACTIVESTOPTIME` | — | Order active-stop time. |
-| `BLOCKORDER` | — | Block order flag. |
+| `BLOCKORDER` | — | Block order flag. #N/A on an order StreamXLS only ever saw as already complete (the completed-order feed does not carry this flag). |
 | `SWEEPTOFILL` | — | Sweep-to-fill flag. |
 | `ALLORNONE` | — | All-or-none flag. |
 | `NOTHELD` | — | Not-held flag. |
 | `SOLICITED` | — | Solicited flag. |
-| `WHATIF` | — | What-if (margin preview) flag. |
-| `INCLUDEOVERNIGHT` | — | Include-overnight flag. |
+| `WHATIF` | — | What-if (margin preview) flag. #N/A on an order StreamXLS only ever saw as already complete (the completed-order feed does not carry this flag). |
+| `INCLUDEOVERNIGHT` | — | Include-overnight flag. #N/A on an order StreamXLS only ever saw as already complete (the completed-order feed does not carry this flag). |
 | `CONID` | — | Contract ID. |
 | `SYMBOL` | — | Underlying symbol. |
 | `SECTYPE` | — | Security type. |
 | `EXPIRY` | `LASTTRADEDATE` | Expiration date. |
-| `STRIKE` | — | Option strike. |
+| `STRIKE` | — | Option strike. #N/A for a contract that has none — a stock, future, forex or combo order. |
 | `RIGHT` | — | Option right (C/P). |
 | `MULTIPLIER` | — | Contract multiplier. |
 | `EXCHANGE` | — | Exchange. |
@@ -411,9 +413,9 @@ The `tag` key (aliases `nonce`, `seq`, `submit`, `clienttag`) is preserved verba
 | `CURRENCY` | — | Currency. |
 | `LOCALSYMBOL` | — | Exchange-specific local symbol. |
 | `TRADINGCLASS` | — | Trading class. |
-| `COMMISSIONANDFEES` | — | Commission and fees. |
-| `MINCOMMISSIONANDFEES` | — | Minimum commission and fees. |
-| `MAXCOMMISSIONANDFEES` | — | Maximum commission and fees. |
+| `COMMISSIONANDFEES` | — | Commission and fees. #N/A until TWS reports the figure. |
+| `MINCOMMISSIONANDFEES` | — | Minimum commission and fees. Reported only for a what-if (margin preview) order, which is the only kind that carries an estimate range; #N/A otherwise. |
+| `MAXCOMMISSIONANDFEES` | — | Maximum commission and fees. Reported only for a what-if (margin preview) order, which is the only kind that carries an estimate range; #N/A otherwise. |
 | `COMMISSIONANDFEESCURRENCY` | — | Currency of the commission/fees figures. |
 | `MARGINCURRENCY` | — | Currency of the margin figures. |
 | `INITMARGINBEFORE` | — | Initial margin before the order. |
@@ -528,7 +530,7 @@ A StageOrder cell publishes its own states before any TWS status arrives: `Sendi
 | `CONID` | `CONTRACTID` | Contract ID. |
 | `SYMBOL` | `SYM` | Underlying symbol. |
 | `SECTYPE` | `SEC`, `SECURITYTYPE` | Security type. |
-| `STRIKE` | — | Option strike. |
+| `STRIKE` | — | Option strike. #N/A on a contract that has none — a stock, future, forex or crypto position. |
 | `RIGHT` | `PUTCALL` | Option right (C/P). |
 | `EXPIRY` | `EXP`, `EXPIRATION`, `LASTTRADEDATEORCONTRACTMONTH` | Expiration date. |
 | `EXCHANGE` | `EXCH` | Exchange. |
@@ -587,12 +589,12 @@ Most of these fields answer for one connection. Seven do not — `ACTIVETOPICCOU
 | `ISCONNECTED` | 1 when the engine is connected to TWS (as far as it can tell), 0 when definitively not. |
 | `ACTIVETOPICCOUNT` | How many distinct subscriptions the add-in currently holds. Two formulas that resolve to the same subscription — say `AAPL` and `AAPL@SMART` for the same field — count once between them, and that subscription leaves the count only when the last formula referring to it is gone. Add-in-wide, not per connection, and counted from subscription rather than from data arriving — so it does not fall when TWS disconnects. Status and metadata cells count themselves, and StageOrder is the one exception to sharing: each StageOrder formula is its own submission and counts separately. |
 | `ACCOUNTSCSV` | Comma-separated managed account IDs from the connection handshake. |
-| `LASTUPDATEUTC` | UTC timestamp of the last successful data update. |
+| `LASTUPDATEUTC` | UTC timestamp of the last successful data update on this connection — stamped by every publish that carries data, market data, account, order and position alike — so it freezes during a market-data outage only on a connection whose cells are all market data; anywhere else the other subscriptions keep it advancing. |
 | `SERVERHEARTBEATUTC` | UTC timestamp of the server's most recent status pass. Excel's heartbeat usually drives it, but engine-side connection events stamp it too, and when the Excel heartbeat is disabled or raised above Excel's floor the server's own cadence takes over — so it measures StreamXLS running, not Excel calling, and never TWS liveness. |
 | `SERVERVERSION` | This connection's negotiated TWS ServerVersion, or 'Not Connected'. |
 | `MARKETDATATYPE` | Configured default market-data tier (1–4); distinct from the per-contract market-data field of the same name. |
-| `MARKETDATASTATE` | Market-data version state: Ok / TooOld / Unknown. |
-| `MARKETDATAMESSAGE` | Actionable message when the negotiated version is too old; empty otherwise. |
+| `MARKETDATASTATE` | Whether this connection's TWS version supports StreamXLS market data: Ok / TooOld / Unknown. It answers that one question and says nothing about whether data is flowing — it reads `Ok` right through a market-data outage. For flow, watch the quote cells themselves (`LASTTIME` on a contract that trades) and `MARKETDATAFARMS`, which may name the farm. `LASTUPDATEUTC` is stamped by every publish that carries data — market data, account, order or position — so it freezes during a market-data outage only on a connection whose cells are all market data; anywhere else it keeps advancing on the other subscriptions. |
+| `MARKETDATAMESSAGE` | The action to take when `MARKETDATASTATE` is TooOld; empty otherwise. Empty is not a statement that data is flowing — see `MARKETDATASTATE`. |
 | `MARKETDATAFARMS` | Which market-data farms TWS has told this connection are broken, and since when (UTC) — one entry per farm, reading like `usfarm down since 2026-08-16T13:45:09Z`. TWS connects to every market-data farm your entitlements touch, and it announces each one independently — so a farm named here is very often not one serving the contracts in your sheet, and StreamXLS deliberately changes no price cell because of it: this is an explanation to reach for when a quote looks frozen, not a verdict on any cell. Empty means only that no uncleared farm-down report is outstanding — never that every farm is healthy. TWS clears an entry itself, by re-announcing that farm as OK or as dormant. Everything here is also cleared wholesale on a reconnect, and on TWS regaining its own connection to IB after an outage: in both cases a farm report from before the break describes a connection that no longer exists, and StreamXLS will not carry a claim it can no longer stand behind. A farm that is still down is re-announced, so it comes back with a fresh time. Historical-data farms are not reported: StreamXLS never requests historical data, so they cannot affect a cell. |
 | `ORDERDATASTATE` | Order-subsystem data state (see data-state values). |
 | `LASTORDERLISTCHANGEUTC` | UTC time the order-list membership last changed — across every order the connection's API client sees, regardless of account (an orders-list account filter narrows the rendered CSV, not this timestamp). |
@@ -615,7 +617,7 @@ Most of these fields answer for one connection. Seven do not — `ACTIVETOPICCOU
 
 ### Metadata fields
 
-Addressed by bare name (`=RTD("tws.rtd", , "VERSION")`). A metadata cell resolves once, when it is first subscribed. The `LICENSE_*` fields are the one exception: they re-resolve around the initial verification window (the non-blocking first evaluation), so a cell subscribed while entitlement was still verifying repaints once the definitive state lands. `LICENSE_*` and `TWSAPI_*` also repaint mid-session, without re-entry, when what they report changes — a trial running out, a subscription lapsing, an activation, or an installed TWS API that turns out to be incompatible when a connection is attempted. That re-verification is deliberately infrequent (about every 6 hours while the license grants data, about every 10 minutes once it does not), so a license changed elsewhere normally reaches the cell at the next check rather than promptly. The installed TWS API itself is inspected once per Excel session, so installing or upgrading it takes effect on the next Excel restart. The build and `UPDATE_*` metadata fields resolve once at subscription and do not re-resolve. For a live-tracking view of update availability, use the `UPDATE_*` status fields above, which re-resolve every heartbeat.
+Addressed by bare name (`=RTD("tws.rtd", , "VERSION")`). A metadata cell resolves once, when it is first subscribed. The `LICENSE_*` fields are the one exception: they re-resolve around the initial verification window (the non-blocking first evaluation), so a cell subscribed while entitlement was still verifying repaints once the definitive state lands. `LICENSE_*` and `TWSAPI_*` also repaint mid-session, without re-entry, when what they report changes — a trial running out, a subscription lapsing, an activation, or an installed TWS API that turns out to be incompatible when a connection is attempted. That re-verification is deliberately infrequent (about every 6 hours while the license grants data, about every 10 minutes once it does not, and about every 15 seconds while `LICENSE_STATE` reads `AssentRequired` — that one clears as soon as you accept the agreement in the Control Panel, and re-checking it costs no network call), so a license changed elsewhere normally reaches the cell at the next check rather than promptly. The installed TWS API itself is inspected once per Excel session, so installing or upgrading it takes effect on the next Excel restart. The build and `UPDATE_*` metadata fields resolve once at subscription and do not re-resolve. For a live-tracking view of update availability, use the `UPDATE_*` status fields above, which re-resolve every heartbeat.
 
 | Field | Description |
 | --- | --- |
@@ -624,7 +626,7 @@ Addressed by bare name (`=RTD("tws.rtd", , "VERSION")`). A metadata cell resolve
 | `SERVER_PATH` | Filesystem location of the deployed DLL. |
 | `CONFIGURATION` | Build configuration (Debug/Release). |
 | `ASSEMBLY_NAME` | Executing assembly simple name. |
-| `LICENSE_STATE` | License entitlement state. |
+| `LICENSE_STATE` | License entitlement state. `AssentRequired` means no one has accepted the licence agreement for this Windows account yet: open the StreamXLS Control Panel (Start menu → StreamXLS), read the agreement and click **I accept**. |
 | `LICENSE_MESSAGE` | License status message. |
 | `LICENSE_DAYS_REMAINING` | Trial days remaining; empty when not on trial, `#N/A` while a trial is running but its expiry date could not be read. |
 | `TWSAPI_STATE` | TWS-API binding state. |
