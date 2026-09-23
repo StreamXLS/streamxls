@@ -79,7 +79,7 @@ There are two ways to be in that situation:
 
 **The fix, in order of preference:**
 
-1. **Re-run the installer and choose "Install for all users."** This registers StreamXLS for the whole machine, which any account can use — including the built-in `Administrator`, and including an Excel you deliberately run as an administrator. It needs administrator rights to install, and afterwards applying an update will ask for administrator approval too.
+1. **Uninstall StreamXLS (Settings → Apps), then run the installer again and choose "Install for all users."** The uninstall comes first: a re-run over an existing single-user installation keeps that installation's mode and never shows the choice. (Alternatively, run the installer with the `/ALLUSERS` switch; it then offers to remove the single-user copy for you.) Installing for all users registers StreamXLS for the whole machine, which any account can use — including the built-in `Administrator`, and including an Excel you deliberately run as an administrator. It needs administrator rights to install, and afterwards applying an update will ask for administrator approval too.
 2. **Or sign in with a named administrator account** — any account you created yourself — and install StreamXLS there. It then works normally, with no other change. This needs no administrator rights at all, but it only helps that account.
 
 From version 1.1.1 the installer tells you when the account you are installing from cannot use a single-user installation, and checks at the end of the installation that Excel will actually be able to start StreamXLS. The Control Panel runs the same check when it opens.
@@ -102,7 +102,7 @@ Windows 10 / 11; desktop Microsoft Excel for Windows — Microsoft 365 or Office
 
 ## How does pricing work?
 
-There is a 30-day, full-featured trial that is keyless — it starts automatically the first time StreamXLS is used in Excel, no sign-up required. Subscriptions start at **$59/month**; current pricing is on the [pricing page](https://streamxls.com/buy). A license key arrives by email after purchase and is activated in the StreamXLS Control Panel. The trial is the evaluation window: paid subscriptions are non-refundable, but you can cancel future renewals at any time (effective at the end of the paid period).
+There is a 30-day, full-featured trial that starts on first run — no sign-up required. Subscriptions start at **$59/month**; current pricing is on the [pricing page](https://streamxls.com/buy). A license key arrives by email after purchase and is activated in the StreamXLS Control Panel. The trial is the evaluation window: paid subscriptions are non-refundable, but you can cancel future renewals at any time (effective at the end of the paid period).
 
 ## What happens when the trial or a subscription ends?
 

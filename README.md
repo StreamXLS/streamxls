@@ -18,7 +18,7 @@ Market data, account values, orders, positions with live P&L — StreamXLS is a 
 ## Downloads
 
 - **[Releases](https://github.com/StreamXLS/streamxls/releases)** — signed, per-user installer (no admin rights required). Each installer's SHA-256 is published with the release and at [streamxls.com/download](https://streamxls.com/download), which also explains how to verify the installer is safe.  (Windows SmartScreen may still issue warnings until the StreamXLS install base reaches [Microsoft's "reputation" threshold](https://learn.microsoft.com/en-us/windows/apps/package-and-deploy/smartscreen-reputation).)
-  - StreamXLS offers a 30-day, full-featured trial: it starts automatically the first time StreamXLS is used in Excel.
+  - StreamXLS offers a 30-day, full-featured trial that starts on first run.
   - Subscriptions start at $59/month — current pricing at [streamxls.com/buy](https://streamxls.com/buy).
 - **[Demo workbook](examples/StreamXLS.xlsm)** — every feature illustrated in one workbook, so you can start without reading further.  A local copy ships with the installer and can be opened from the StreamXLS Control Panel (click **Open the demo workbook**).  You can also download it [here](./examples/StreamXLS.xlsm) or from [streamxls.com](https://streamxls.com/StreamXLS.xlsm).  The embedded code is signed, but Excel blocks downloaded copies from running VBA until you unblock the file: Right click → Properties → **Unblock**.
 

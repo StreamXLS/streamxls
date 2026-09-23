@@ -417,10 +417,9 @@ requests to those exchanges go out as written. There is no wildcard: each venue 
 assertion that you hold its subscription, and an entry that is not a US stock venue opts nothing in
 (it is reported in the `CONFIGWARNINGS` status field). It is settable as an environment variable or
 in your config file; see [Advanced: environment variables](#advanced-environment-variables). The
-setting is read when a formula is first calculated, so adding an exchange does not repaint cells that
-were already refused: re-enter those formulas, or restart Excel. Every other security type, non-USD
-contracts (`BHP@ASX/STK/AUD`), venues that are not US stock venues (`PHT.ESC@VALUE`), and `SMART` are
-all unaffected and need no setting.
+setting is read once, when Excel loads StreamXLS: after changing it, restart Excel. Every other
+security type, non-USD contracts (`BHP@ASX/STK/AUD`), venues that are not US stock venues
+(`PHT.ESC@VALUE`), and `SMART` are all unaffected and need no setting.
 
 ## Blank arguments: three rules
 
@@ -868,9 +867,25 @@ non-standard-multiplier contracts roll into that same `Position` sum and `Averag
 contract count, even though `MarketValue` and the P&L fields already carry each contract's own
 multiplier; the tell is the `Multiplier` cell, which fails loud on the mismatch instead of picking
 one. Name `exp=` or `conid=` whenever you mean one contract. The single-account form never rolls up: it fails loud instead, as
-**Pin the contract to exactly one position** below describes. Contract-metadata fields fail loud in
+**Pin the contract to exactly one position** below describes — once TWS has finished listing the account's positions at each
+connect; while that list is still arriving, a cell whose spec matches several legs can briefly show the first leg's value. Contract-metadata fields fail loud in
 both forms — an aggregate `ConID` matching two contracts returns `Ambiguous position ...`, never one
 of the two.
+
+**A money roll-up is all-or-nothing.** If any one matched position is missing the field, the aggregate
+cell reads `#N/A` rather than totalling the rest: a subtotal sitting in a cell you asked for a total is a
+plausible number that is wrong, and StreamXLS would rather say it has no answer. This governs every
+position field that rolls up a number — `MarketValue`, `DailyPNL`, `RealizedPNL`, `UnrealizedPNL` and
+`AverageCost` — and `RealizedPNL` is where you will meet it, for the reason below.
+
+**`RealizedPNL` reads `#N/A` on most holdings, most of the time — that is TWS's answer, not a fault.**
+TWS appears to send a realized figure for a position only once that position has realised something
+during the current session; for everything else it sends its "no value" marker, which StreamXLS shows as
+`#N/A` rather than as a blank that would read as **zero** in a `SUM`. So on a book you have not traded
+today, expect the whole `RealizedPNL` column to read `#N/A` — and, by the all-or-nothing rule above,
+expect an aggregate `RealizedPNL` to read `#N/A` unless *every* matched holding has realised something.
+If you want a blank or a zero in its place, choose that yourself:
+`=IFERROR(RTD("Tws.Rtd",, "position", , "AAPL", "RealizedPNL"), 0)`.
 
 One account — name the account number:
 
@@ -1083,13 +1098,16 @@ you **Submit** it there; StreamXLS never sends an order directly to market. (`Se
 
 - **Staging is a side-effect of subscribing** — entering the formula anywhere in Excel is the action that
   stages the order. There is no separate "go" step.
-- The cell returns a status string, not a number — `Sending` → `Staged`. After you submit the
+- The cell returns a status string, not a number — `Sending` → `Staged` → TWS's own word for the
+  ticket, which for a deactivated ticket waiting for your Submit is `PreSubmitted`, usually within a
+  second (so `Staged` shows only briefly). After you submit the
   order in TWS, the formula tracks its status there (`Submitted`, `Cancelled`, `Filled`, …). In case of an error the formula returns `RTD error: StageOrder …` with an error detail.
 - Copying a formula does not multiply orders by itself — Excel collapses RTD topics whose
   arguments are identical, so ten copies of one unchanged formula are one topic and stage one order.
   What stages one order per cell is a formula whose arguments *differ* per cell: a relative reference
   that changes as you fill down, a different `limit`, a unique `tag`. Fill a column of `StageOrder`
   formulas against a column of symbols and you stage a column of orders. Excel compares the argument text, not StreamXLS's reading of it: `side=BUY` and `action=BUY` are distinct topics even though they stage the same order.
+- **Arguments that stream re-stage.** By the same rule, a formula whose arguments reference a live cell — `"limit="&(A3-100)` with `A3` a streaming price — is a new topic at every change of that cell, so it stages a new ticket each time the price moves, and again after a reopen the moment the first live value arrives. Drive `StageOrder` arguments from values you set, not from cells that stream; see [Reopening a workbook does not re-stage](#reopening-a-workbook-does-not-re-stage).
 
 Scope — `StageOrder` stages a single-leg order, one order per cell: the same contract keys used for
 market data above, with `STK`/`USD` defaults and every key validated fail-loud. `sec=` is where the
@@ -1199,8 +1217,10 @@ a second subscription and StreamXLS stages the additional order.
 
 - `Sending`: the topic is registered and the staging request to TWS is queued.
 - `Staged`: the order was delivered to TWS in a deactivated/not-transmitted state and is awaiting
-  your submission there. (TWS sends no confirmation at staging time, so `Staged` means "delivered
-  without error.") How it presents in TWS is chosen per formula with the optional `park` key — see
+  your submission there. `Staged` means "delivered without error": for the default deactivated ticket
+  TWS then reports `PreSubmitted` within about a second, so that is the word you normally see; for a
+  parked ticket (`park=true`) TWS sends no callback at staging time and the cell stays `Staged` until
+  you act in TWS. How it presents in TWS is chosen per formula with the optional `park` key — see
   [Two staging shapes](#two-staging-shapes-default-vs-parktrue).
 - After you act on the order in TWS, the cell follows TWS's own status reports:
   `ApiPending`/`PendingSubmit` (TWS has it; the destination has not acknowledged),
@@ -1318,9 +1338,9 @@ Excel evaluated first, and Excel does not promise an order.
 A rule-1 or rule-3 choice is made once, when the formula is first subscribed, and it holds for the
 rest of the Excel session. A status formula that subscribes before any connection exists takes rule 3
 and stays on the default — which is how a paper-only workbook ends up showing `IsConnected` = `0` next
-to paper cells that are working fine. Re-entry (F2, Enter) re-runs the resolution, but it is not a way
-back: once the default connection exists, an argument-less status formula resolves to it. Naming the
-connection is the only repair.
+to paper cells that are working fine. Clearing the cell and entering the formula again re-runs the
+resolution, but it is not a way back: once the default connection exists, an argument-less status
+formula resolves to it. Naming the connection is the only repair.
 
 #### When a piggybacked cell stops answering
 
@@ -1437,7 +1457,8 @@ a re-check.
 
 `TWSAPI_VERSION` is fixed for the session — the installed API is inspected once per Excel run, so
 install or upgrade it with Excel closed. Every other metadata field — `VERSION`, `BUILD_TIME`, the
-`UPDATE_*` fields — resolves once and changes only on re-entry (F2, Enter) or workbook reopen.
+`UPDATE_*` fields — resolves once and changes only when you clear the cell and enter the formula
+again, or on workbook reopen.
 
 This is why [the license section below](#when-your-license-or-trial-lapses-mid-session) tells you to
 read `LICENSE_STATE` rather than trusting a quiet price: the state field is authoritative about
@@ -1533,14 +1554,14 @@ To disable these reminders, open the StreamXLS Control Panel and clear **Remind 
 
 Every Windows user account accepts the licence agreement once. If StreamXLS was installed for all
 users — on a shared machine, or on a pre-built cloud image — the person who installed it accepted for
-themselves only, so your account has not accepted yet and no trial has started for it. Your data
-formulas show:
+themselves only, so your account has not accepted yet. Your data formulas show:
 
-- `Accept the StreamXLS licence agreement in the StreamXLS Control Panel (Start menu → StreamXLS) to start your 30-day trial.`
+- `Accept the StreamXLS licence agreement in the StreamXLS Control Panel (Start menu → StreamXLS)`
 
 and `LICENSE_STATE` reads `AssentRequired`.
 
 Open **Start menu → StreamXLS → StreamXLS Control Panel**, read the agreement and click **I accept**.
+Your 30-day trial starts when you accept.
 If you decline, the Control Panel closes and StreamXLS keeps serving no data; open it again whenever you want to accept.
 
 If you installed StreamXLS yourself and accepted the agreement during installation, you will never
@@ -1575,11 +1596,12 @@ lapse will surface as `#N/A`.
   seconds, because accepting the agreement is something you do in another window while watching Excel.)
 - One exception, by design: an order-staging formula is never replayed, because re-registering it
   would stage the order minutes or hours later, on a market that has moved. A staging formula
-  blocked during the lapse keeps the license message until you re-enter it (F2, Enter) — the
-  deliberate re-stage gesture.
+  blocked during the lapse keeps the license message until you clear the cell (Delete), then type
+  the formula again — the deliberate re-stage gesture. Pressing F2 and Enter on the unchanged
+  formula tells StreamXLS nothing happened, so the message stays.
 - (A plain recalculate — F9 — does not re-enter an RTD formula, so it will not clear a stuck cell.)
   If any other formula is still on the message well after `LICENSE_STATE` reads `Paid` or `Trial`,
-  re-enter it.
+  clear its cell and enter the formula again.
 
 ### Bought during your trial, but the sheet still says Trial?
 
@@ -1735,8 +1757,10 @@ sits in TWS awaiting a human click there. The `StageOrder` formula (the preferre
 
 1. `Sending` — the moment the formula is entered, while the ticket is on its way to TWS.
 2. `Staged` — once TWS received the ticket without rejecting it (returning an error).
-3. TWS's own status words — as the order progresses in TWS you'll see TWS's
-   strings: `PreSubmitted`, `Submitted`, `Filled`, `Inactive`, and so on. (The one collapse:
+3. TWS's own status words — usually within a second of staging, before you have touched the
+   ticket: a deactivated ticket waiting for your Submit reports `PreSubmitted`, so that is the word
+   you will normally see in place of `Staged`. Then, as the order progresses in TWS, TWS's
+   strings: `Submitted`, `Filled`, `Inactive`, and so on. (The one collapse:
    TWS's `Cancelled` and `ApiCancelled` both show here as `Cancelled` — a single cancel word
    for your formulas to match.)
 
@@ -1766,12 +1790,20 @@ When you reopen a workbook, Excel re-subscribes your saved `StageOrder` formulas
 not re-stage them — a reopen is not a deliberate order action. Each such cell shows:
 
 ```
-Disarmed: workbook reopen does not re-stage orders. Re-enter the formula to stage a new order; track existing orders with the orders topics.
+Disarmed: workbook reopen does not re-stage orders. To stage a new order, clear the cell and enter the formula again; track existing orders with the orders topics.
 ```
 
-To stage a fresh order, re-enter the formula (select the cell, press F2, then Enter). Orders you
+To stage a fresh order, clear the cell (Delete), then type the formula again — pressing F2 and Enter
+on the unchanged formula tells StreamXLS nothing happened, so the cell stays disarmed. Orders you
 staged or transmitted in an earlier session are unaffected by the reopen — track the live ones with
 the [`orders` and `order` topics](#order-topics).
+
+A `StageOrder` formula whose arguments come from other cells can present a new set of arguments
+after a reopen — to Excel that is a new topic, and it stages. With a streaming cell as an input that
+happens about a second after the reopen, as soon as its first live value arrives: the cell shows the
+disarmed text and then stages (see [Arguments that stream re-stage](#staging-orders-stageorder)). For a workbook you save, build
+`StageOrder` formulas from literal arguments, or clear `StageOrder` cells before saving. A formula
+written into a cell by a macro is a new formula to Excel, and it stages: that is the macro's action.
 
 ### Editing a staged formula stages a second order
 
@@ -2006,8 +2038,9 @@ re-subscribes the cell without re-staging the order. See
 
 What to do:
 
-- To stage a fresh order, re-enter the formula: select the cell, press F2, then Enter. Recalculating
-  with F9 does not re-enter an RTD formula, so it leaves the cell disarmed.
+- To stage a fresh order, clear the cell (Delete), then type the formula again — pressing F2 and
+  Enter on the unchanged formula tells StreamXLS nothing happened, so the cell stays disarmed.
+  Recalculating with F9 does not re-enter an RTD formula, so it leaves the cell disarmed.
 - To follow an order you staged earlier, point the `orders`/`order` topics at it — see
   [Order topics](#order-topics). Orders staged in a previous session are untouched by the reopen.
 
@@ -2100,7 +2133,7 @@ Basic settings — always visible in the Settings dialog:
 | `TWS_RTD_DELAYED_ANNOTATION` | **Delayed-data annotation** | `false` | On, a delayed numeric value renders as the text `150.25 (delayed)` instead of a bare number. |
 | `TWS_RTD_ERROR_DISPLAY` | **Error display** | `MESSAGE` | `MESSAGE` shows the error text in a market-data error cell; `NA` shows a bare `#N/A`. |
 | `TWS_RTD_PRESERVE_ON_DISCONNECT` | **Preserve values on disconnect** | `false` | Off, account/PnL/position/order cells fail loud (`#N/A`) on disconnect; on, they hold last-known values. |
-| `TWS_RTD_LOG_FILE` | **Log file** | (none) | Log-file path; blank disables file logging. |
+| `TWS_RTD_LOG_FILE` | **Log file** | (none) | Log-file path; blank disables file logging. A second Excel process logs to `<name>.pid<N>.log` beside it. |
 | `TWS_RTD_LOG_LEVEL` | **Log level** | `Info` | Log verbosity: None, Error, Warn, Info, Debug, Trace, Verbose. |
 | `STREAMXLS_TWSAPI_PATH` | **TWS API location** | (auto) | TWS API folder or `CSharpAPI.dll`; blank auto-detects. See [The TWS API location](#the-tws-api-location). |
 
@@ -2113,7 +2146,7 @@ are the tested values. Leave any you do not recognize at its default.
 
 | Variable | Control Panel setting | Default | Purpose |
 |---|---|---|---|
-| `TWS_RTD_LOG_RETENTION_DAYS` | **Log retention (days)** | `5` | Days to keep rotated logs; -1 keeps them forever. |
+| `TWS_RTD_LOG_RETENTION_DAYS` | **Log retention (days)** | `5` | Days to keep rotated logs; -1 keeps them forever. A second Excel process's log that is still being written is neither counted nor deleted. |
 | `TWS_RTD_ORDER_REFRESH_SECONDS` | **Order refresh (seconds)** | `15` | How often the order feed re-polls TWS. |
 | `TWS_RTD_THROTTLE_MS` | **Position throttle (ms)** | `500` | Minimum interval between position-refresh requests. |
 | `TWS_RTD_HEARTBEAT_INTERVAL_MS` | **Heartbeat interval (ms)** | Excel default | Overrides Excel's RTD heartbeat interval; at least 15000, or -1 to disable. See [The heartbeat and the update watchdog](#the-heartbeat-and-the-update-watchdog). |

@@ -42,7 +42,7 @@ StreamXLS-Setup-<version>.exe /ALLUSERS /VERYSILENT /NORESTART
 and nothing else — do not start Excel, do not open the Control Panel, and do not accept the licence agreement on the template.
 
 Each person who later signs in to a machine built from the image accepts the licence agreement themselves, the first time they open the StreamXLS Control Panel (**Start menu → StreamXLS**). Until they do, StreamXLS formulas show a licence message instead of data —
-`Accept the StreamXLS licence agreement in the StreamXLS Control Panel (Start menu → StreamXLS) to start your 30-day trial.`
+`Accept the StreamXLS licence agreement in the StreamXLS Control Panel (Start menu → StreamXLS)`
 — and `=RTD("Tws.Rtd",, "LICENSE_STATE")` reads `AssentRequired`.
 
 The Control Panel also checks for a newer version at that moment and offers it, so an image pinned to one release still starts each customer on current bits. The update is always offered, never installed silently.
