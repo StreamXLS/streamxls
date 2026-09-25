@@ -62,7 +62,9 @@ A live or paper IBKR account with API access enabled (TWS or IB Gateway). The se
 
 In TWS or IB Gateway, *File → Global Configuration → API → Settings*: enable **ActiveX and Socket Clients**, confirm the **Socket Port**, and uncheck **Read-Only API**. StreamXLS never places or modifies orders on its own (staged tickets still need your click in TWS to transmit), but TWS classifies its completed-order history query as a write action: with Read-Only checked, TWS refuses that query (error 321), pops an "API client is attempting to send a request that needs API write access" dialog at you, and StreamXLS then cannot list orders that were already complete when it connected or confirm the final status of an order that leaves the open-orders list. StreamXLS logs one warning naming the setting and stops asking until it reconnects; open orders, executions, positions, and market data are unaffected. Read-Only must also be off for `StageOrder` to draft order tickets in TWS. API permissions, trusted-IP configuration, and master-client-ID setup follow the standard guidance in the [TWS API documentation](https://www.interactivebrokers.com/campus/ibkr-api-page/twsapi-doc/). These prerequisites apply to StreamXLS in the same way they apply to any TWS API client.
 
-## Why do `BIDSIZE` and `ASKSIZE` read 0 on liquid US stocks?
+<a id="why-do-bidsize-and-asksize-read-0-on-liquid-us-stocks"></a>
+
+## Why do `BIDSIZE` and `ASKSIZE` show 0 on liquid US stocks?
 
 Because Interactive Brokers is sending sizes in **round lots**, and an inside quote of fewer than 100 shares truncates to zero. In TWS/IB Gateway *Global Configuration → API → Settings*, checkbox "Send market data in lots for US stocks for dual-mode API clients" — IBKR marks it *(Not recommended)* — divides `BIDSIZE`, `ASKSIZE` and `LASTSIZE` by 100 and rounds down, so a 40-share bid reports `0`. A separate box, "Send volumes in lots from all market data sources for US stocks", does the same to `VOLUME`: a session that traded 74.3 million shares reports `742,668`. The two are independent, so sizes in shares alongside volume in lots is possible — verify both. StreamXLS reports what TWS sends.
 
@@ -84,15 +86,15 @@ There are two ways to be in that situation:
 
 From version 1.1.1 the installer tells you when the account you are installing from cannot use a single-user installation, and checks at the end of the installation that Excel will actually be able to start StreamXLS. The Control Panel runs the same check when it opens.
 
-This is standard Windows behaviour for installations registered to one user, not specific to any one Windows version. If only *some* cells read `#N/A` while others stream normally, this is not the cause — if the dead ones are quote cells, see [Quotes stopped](#quotes-stopped--no-market-data-during-competing-live-session); otherwise see [Field reference](reference.md) for the per-field conditions.
+This is standard Windows behaviour for installations registered to one user, not specific to any one Windows version. If only *some* cells show `#N/A` while others stream normally, this is not the cause — if the dead ones are quote cells, see [Quotes stopped](#quotes-stopped--no-market-data-during-competing-live-session); otherwise see [Field reference](reference.md) for the per-field conditions.
 
 ## Quotes stopped — `No market data during competing live session`
 
 Interactive Brokers licenses market data per user and streams it to one session at a time. If a second session is signed in to the same IBKR user — TWS or IB Gateway on another machine, IBKR Mobile, or Client Portal — that session holds the line, and the one StreamXLS is connected to receives a refusal instead of prices. A paper-trading session holds no market-data subscriptions of its own; it borrows the live user's, so a paper session is the one that goes quiet when a live session appears anywhere. Switching to delayed data did not help in our tests.
 
-This is not the same fault as [every cell showing `#N/A`](#every-streamxls-cell-shows-na--on-a-vps-or-when-excel-runs-as-administrator). There, Excel never starts the StreamXLS engine and *every* formula is dead, including the ones that need no TWS connection (`VERSION`, `LICENSE_STATE`), with no log written. Here the connection is healthy — `IsConnected` reads `1`, and orders, positions and account values keep updating — and market data specifically stops, on the refused contracts only.
+This is not the same fault as [every cell showing `#N/A`](#every-streamxls-cell-shows-na--on-a-vps-or-when-excel-runs-as-administrator). There, Excel never starts the StreamXLS engine and *every* formula is dead, including the ones that need no TWS connection (`VERSION`, `LICENSE_STATE`), with no log written. Here the connection is healthy — `IsConnected` returns `1`, and orders, positions and account values keep updating — and market data specifically stops, on the refused contracts only.
 
-From version 1.1.1, every cell on a refused contract reads `RTD error: No market data during competing live session` for as long as the refusal is in effect rather than a bare `#N/A`, and StreamXLS keeps re-requesting the contract — three times at five-minute intervals, then once an hour — instead of giving up for the session. Close the other session and data comes back on its own, usually within a few minutes of it going away, with nothing to do in Excel.
+From version 1.1.1, every cell on a refused contract shows `RTD error: No market data during competing live session` for as long as the refusal is in effect rather than a bare `#N/A`, and StreamXLS keeps re-requesting the contract — three times at five-minute intervals, then once an hour — instead of giving up for the session. Close the other session and data comes back on its own, usually within a few minutes of it going away, with nothing to do in Excel.
 
 Full diagnosis, including how to confirm it from the sheet without a log and what to do if data does not come back: [Quotes stopped, but the connection is healthy](manual.md#quotes-stopped-but-the-connection-is-healthy).
 
@@ -112,7 +114,7 @@ StreamXLS warns you — as Windows notifications raised by its Control Panel —
 
 ## StreamXLS says "Accept the StreamXLS licence agreement in the StreamXLS Control Panel"
 
-Every Windows user account accepts the licence agreement once. If StreamXLS was installed for all users — on a shared machine, or on a pre-built image — the person who installed it accepted for themselves only, so your account has not accepted yet. `LICENSE_STATE` reads `AssentRequired` while that is the case.
+Every Windows user account accepts the licence agreement once. If StreamXLS was installed for all users — on a shared machine, or on a pre-built image — the person who installed it accepted for themselves only, so your account has not accepted yet. `LICENSE_STATE` returns `AssentRequired` while that is the case.
 
 Open **Start menu → StreamXLS → StreamXLS Control Panel**, read the agreement, and click **I accept**.
 
@@ -120,7 +122,7 @@ If you decline, the Control Panel closes; open it again whenever you want to acc
 
 ## StreamXLS says "the Microsoft Visual C++ runtime is missing"
 
-StreamXLS's licensing component needs the Microsoft Visual C++ 2015–2022 runtime. Nearly every Windows PC already has it — many programs install it — but a freshly built Windows Server image or VPS template may not. Until it is present StreamXLS cannot verify any licence: `LICENSE_STATE` reads `Unknown`, and the cells that need a licence carry that message instead of data.
+StreamXLS's licensing component needs the Microsoft Visual C++ 2015–2022 runtime. Nearly every Windows PC already has it — many programs install it — but a freshly built Windows Server image or VPS template may not. Until it is present StreamXLS cannot verify any licence: `LICENSE_STATE` returns `Unknown`, and the cells that need a licence carry that message instead of data.
 
 Install the [x64 redistributable](https://aka.ms/vs/17/release/vc_redist.x64.exe) (and the [x86 one](https://aka.ms/vs/17/release/vc_redist.x86.exe) as well if you use 32-bit Excel), then restart Excel. StreamXLS itself does not need to be reinstalled. If you are building an image, install the runtime on the template first — see [Pre-installing StreamXLS in a Windows image](install.md#pre-installing-streamxls-in-a-windows-image).
 

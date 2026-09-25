@@ -112,7 +112,7 @@ Some fields carry specific behavior worth knowing before you rely on them:
 | DELAYED | 3 | Auto-fallback: real-time if available, delayed (15-20min) otherwise |
 | DELAYED_FROZEN | 4 | Auto-fallback like DELAYED, plus frozen last-session values when the market is closed |
 
-**StreamXLS Control Panel → Settings → Market data** sets the type StreamXLS *requests*.  Out of the box it defaults to type 4. TWS then serves each contract at the best tier your market-data subscriptions allow and reports what it served per contract (accessible with the `MarketDataType`/`IsDelayed` fields above). Under the default (4), one contract can receive real-time data while another is given delayed data — *in the same session, on the same connection*. The tier is a per-symbol fact, so check `IsDelayed` next to each price rather than reading anything into the tier you requested. To refuse delayed data outright, set **Market data** to `Live (real-time)` (type 1): TWS then on returns realtime data, and a contract for which you lack realtime access shows TWS's own explanation, e.g. `RTD error: Requested market data is not subscribed…`, rather than a delayed price. (Set **Settings → Error display** to `NA` if you would rather those read `#N/A`.)
+**StreamXLS Control Panel → Settings → Market data** sets the type StreamXLS *requests*.  Out of the box it defaults to type 4. TWS then serves each contract at the best tier your market-data subscriptions allow and reports what it served per contract (accessible with the `MarketDataType`/`IsDelayed` fields above). Under the default (4), one contract can receive real-time data while another is given delayed data — *in the same session, on the same connection*. The tier is a per-symbol fact, so check `IsDelayed` next to each price rather than reading anything into the tier you requested. To refuse delayed data outright, set **Market data** to `Live (real-time)` (type 1): TWS then returns only real-time data, and a contract for which you lack real-time access shows TWS's own explanation, e.g. `RTD error: Requested market data is not subscribed…`, rather than a delayed price. (Set **Settings → Error display** to `NA` if you would rather those show `#N/A`.)
 
 **Delayed prices look live in a plain cell.** A delayed quote is just a number — nothing in the cell marks it as 15-20 minutes old. Two ways to make the delay visible:
 
@@ -158,16 +158,18 @@ Examples:
 - `SymbolsCsv` returns a semicolon-delimited list of unique position identifiers across all accounts by default.
   - For stocks: just the symbol (e.g., `AAPL`)
   - For options: `SYMBOL@EXCH/OPT/Expiry/Right/Strike/Currency` (e.g., `AAPL@SMART/OPT/20251219/C/180/USD`)
-  - For futures: `SYMBOL@EXCH/FUT/Expiry/Currency` (e.g., `ES@CME/FUT/202503/USD`)
+  - For futures: `SYMBOL@EXCH/FUT/Expiry/Currency`, where `Expiry` is the contract's full last-trade date, not the contract month (e.g., `ES@CME/FUT/20250321/USD`)
   - For other contracts: compact slash notation matching the [contract specification methods](manual.md#contract-specification-methods).
 - `ConIdCsv` returns a semicolon-delimited list of contract IDs (ConId) for the same active positions.
   - If any active position has no conid yet, the list carries the literal token `Missing ConID` — appended after the numbers, or standing alone if no position has one. It is a marker, not a contract ID: one token covers all such positions, and it will not resolve in a `conid=` lookup.
+- A futures position matches on that same exact last-trade date. The six-digit contract-month form used to request futures market data (`exp=202512`) does not match a position — use the full `YYYYMMDD` date `SymbolsCsv` shows you, or `conid=`.
 - `{Accounts}` accepts a comma-separated account filter to restrict to specific accounts; use `*` or leave blank for all accounts.
 - To timestamp membership changes, read `=RTD("Tws.Rtd",, "status", "LastPositionListChangeUtc")` alongside the list — it restamps whenever the position set gains or loses a contract, connection-wide.
 - In Excel 365, `TEXTSPLIT` spills `SymbolsCsv` to columns or rows:
   - Across columns: `=TEXTSPLIT(RTD("Tws.Rtd",, "positions", , "SymbolsCsv"), ";")`
   - Down rows: `=TEXTSPLIT(RTD("Tws.Rtd",, "positions", , "SymbolsCsv"), , ";")`
   - Guarded until the first list arrives: `=IFERROR(TEXTSPLIT(RTD("Tws.Rtd",, "positions", , "SymbolsCsv"), ";"), "")`
+- Without dynamic arrays (Excel 2016), see [Splitting the list into cells](manual.md#the-positions-list) for a formula per row.
 
 Notes on initial load:
 
@@ -182,7 +184,7 @@ Formula: `=RTD("Tws.Rtd",, "position", "{Accounts}", "{contract}", "{field}")`
 
 **The account slot aggregates.** A single account number returns that account's position, but blank, `*`, or a comma-separated list rolls every matched account into one number: sizes and P&L sum; average cost is weighted by absolute position size. Contract-metadata fields report the matched contract when the spec resolves to one, and return a loud `Ambiguous position` error naming the matched contract IDs (or `Missing ConID` for a position TWS has not yet identified) when it resolves to more than one.
 
-**Pin the contract when you need exactly one position.** With a blank, `*`, or comma-separated account slot, a partial contract spec rolls up everything it matches, so `"AAPL"` alone can silently combine the stock and its options. With a single named account it does not roll up — it must resolve to exactly one position, so a spec matching several (e.g. `"AAPL"` across the stock and its options) makes the formula return a loud `Ambiguous position` error naming the matched contract IDs (or `Missing ConID` for a position TWS has not yet identified) rather than guessing, until you add `conid=` or enough contract detail that one position matches.
+**Pin the contract when you need exactly one position.** A bare symbol means the stock (security type defaults to `STK` and currency to `USD`): `"AAPL"` reads your AAPL shares, never your AAPL options. A spec that leaves a detail open can match several holdings — `"sym=AAPL;sec=OPT"` matches every AAPL option you hold, and `"sym=AAPL;sec=OPT;strike=180;right=C"` the 180 call at every expiration. With a blank, `*`, or comma-separated account slot, such a spec rolls up everything it matches into one number. With a single named account it does not roll up — it must resolve to exactly one position, so a spec matching several makes the formula return a loud `Ambiguous position` error naming the matched contract IDs (or `Missing ConID` for a position TWS has not yet identified) rather than guessing, until you add `conid=` or enough contract detail (`exp=`, `right=`, `strike=`) that one position matches.
 
 The complete field set with aliases is in [reference.md §8](reference.md#8-position-list-and-option-definition-fields). Common fields:
 
@@ -267,7 +269,7 @@ The formula reports the order status back to you — `Sending` while the ticket 
 
 By default the order arrives in TWS deactivated, visible to your other TWS instances, surviving a TWS restart, with a **Submit** button that sends it to market in one click. Add `park=true` to stage it instead as a local order-entry ticket with a **Transmit** button, visible only in your own TWS. Either way the order cannot reach the market without your action in TWS.
 
-Staging happens once, when you enter the formula. Reopening a saved workbook does not re-stage: StreamXLS recognizes the reopen and the cell reads `Disarmed: workbook reopen does not re-stage orders…` instead. To stage again deliberately, change the `tag=` value (or any argument) and enter the formula — re-entering it unchanged does not stage, because StreamXLS never stages a formula it has already answered in that Excel session. TWS reconnects do not re-stage either.
+Staging happens once, when you enter the formula. Reopening a saved workbook does not re-stage: StreamXLS recognizes the reopen and the cell shows `Disarmed: workbook reopen does not re-stage orders…` instead. To stage again from a disarmed cell, change the `tag=` value (or any argument) and enter the formula — re-entering it unchanged does not stage. A cell that staged since you opened the workbook does re-stage when you clear it and type the identical formula again: that is a second order, even while the first is still live in TWS. TWS reconnects do not re-stage either.
 
 > Editing a staged order's parameters stages a second order — it does not modify the first. Modifying or deleting staged order tickets must be done in TWS.
 
@@ -343,7 +345,7 @@ Notes on individual fields:
   - Across columns: `=TEXTSPLIT(RTD("Tws.Rtd",, "status", "AccountsCSV"), ",")`
   - Down rows: `=TEXTSPLIT(RTD("Tws.Rtd",, "status", "AccountsCSV"), , ",")`
 - `ServerVersion`, `MarketDataState`, and `MarketDataMessage` are per-connection diagnostics — each TWS connection negotiates its own protocol level, so if connecting to multiple TWS or IB Gateway instances from the same workbook, supply a [connection argument](manual.md#connection-parameters) (e.g. `paper`, `gw`, or `host=`/`port=`) to confirm which one you want the status for; with a single connection, omit it and the status piggybacks that connection — but only while StreamXLS has exactly one connection, after which such a cell reports `#AMBIGUOUS-CONNECTION` instead of diagnosing one connection out of several. `MarketDataState` is `Ok` when the negotiated protocol can stream market data (`ServerVersion` >= 206), `TooOld` when it cannot (1–205), `Unknown` before a version is negotiated.
-- `ConfigWarnings` and the four `UPDATE_*` fields re-resolve on every heartbeat, so a subscribed cell picks up a mid-session change without re-entering the formula. The update fields only read a local file and do not calls over the network.
+- `ConfigWarnings` and the four `UPDATE_*` fields re-resolve on every heartbeat, so a subscribed cell picks up a mid-session change without re-entering the formula. The update fields only read a local record and make no network calls.
 
 ### Data-state and freshness topics
 
@@ -356,7 +358,7 @@ The order and position subsystems each publish a state field and two timestamps,
 | `LastPositionUpdateUtc` | `LastOrderUpdateUtc` | TWS delivered data — but on different terms. See below. |
 
 `PositionDataState` can return all five values below. `OrderDataState` never reports `Idle` — before the
-first order formula is subscribed it reads `Disconnected`, even while the connection is up.
+first order formula is subscribed it returns `Disconnected`, even while the connection is up.
 
 | Value | Meaning |
 |---|---|
@@ -425,13 +427,13 @@ These are the questions that come up while you are building your first sheet. Fo
 
 ### What happens if TWS closes while I have active RTD requests?
 
-- The connection to TWS drops and account, position, and PnL values stop updating. Time-sensitive values switch to `#N/A` rather than hold a number that could be stale.
+- The connection to TWS drops and account, position, and PnL values stop updating. Time-sensitive values switch to `#N/A` rather than hold a number that could be stale — and account, position and PnL cells show the reason instead (e.g. `RTD error: TWS is not accepting API connections on port 7496 — …`) once StreamXLS knows it.
 - Prefer to keep the last values on screen through an outage? Turn on **StreamXLS Control Panel → Settings → Preserve values on disconnect**. A cell that had a value keeps it while no TWS connection is available, and updates it when data returns; a cell that never had one stays `#N/A`. What each family does:
 
   | Cell family | Default (`false`) | With the setting on |
   |---|---|---|
-  | `account`, PnL | `#N/A` for the outage | Last value held, updated on reconnect |
-  | `position` | `#N/A` for the outage | Last value held — except a position the completed reconnect snapshot no longer reports, which stays `#N/A` |
+  | `account`, PnL | `#N/A` for the outage, or its reason when StreamXLS knows it | Last value held, updated on reconnect |
+  | `position` | `#N/A` for the outage, or its reason when StreamXLS knows it | Last value held — except a position the completed reconnect snapshot no longer reports, which stays `#N/A` |
   | `order`, orders lists | Working orders `#N/A`; completed facts (`Filled`, `Cancelled`/`ApiCancelled`) preserved. `Inactive` sweeps too — TWS can move an inactive order back to working, so it is not a completed fact. Open-order lists go `#N/A`; all-orders lists stay | Last displayed values held until reconnect updates them |
   | `StageOrder` | Non-terminal staged status `#N/A`, `Inactive` included; `Filled` and `Cancelled` preserved | Identical — this family ignores the setting |
   | Market data | Per-field rules | Per-field rules — the setting does not reach market data |
@@ -479,7 +481,7 @@ These are the questions that come up while you are building your first sheet. Fo
 ### What if the engine stops?
 
 - Excel keeps the last values it received, then updates when a new instance comes up. So long as the workbook still holds `=RTD()` formulas, Excel re-instantiates the server on its next heartbeat and StreamXLS re-subscribes your data topics; a cell that had no value yet stays `#N/A`.
-- `StageOrder` cells are not re-armed by that recovery — a re-subscription is not a user action, so nothing is staged and the cell reads `Disarmed: …`. Track anything already working with the `orders`/`order` topics, or change the `tag=` value (or any argument) and enter the formula to stage deliberately — re-entering it unchanged does not stage.
+- `StageOrder` cells are not re-armed by that recovery — a re-subscription is not a user action, so nothing is staged and the cell shows `Disarmed: …`. Track anything already working with the `orders`/`order` topics, or change the `tag=` value (or any argument) and enter the formula to stage deliberately — re-entering it unchanged does not stage.
 
 ### How can I determine the last time of a successful RTD update?
 
