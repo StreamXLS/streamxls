@@ -267,7 +267,7 @@ The formula reports the order status back to you — `Sending` while the ticket 
 
 By default the order arrives in TWS deactivated, visible to your other TWS instances, surviving a TWS restart, with a **Submit** button that sends it to market in one click. Add `park=true` to stage it instead as a local order-entry ticket with a **Transmit** button, visible only in your own TWS. Either way the order cannot reach the market without your action in TWS.
 
-Staging happens once, when you enter the formula. Reopening a saved workbook does not re-stage: StreamXLS recognizes the reopen and the cell reads `Disarmed: workbook reopen does not re-stage orders…` instead. To stage again deliberately, clear the cell (Delete), then type the formula again — pressing F2 and Enter on the unchanged formula tells StreamXLS nothing happened, so the cell stays disarmed. TWS reconnects do not re-stage either.
+Staging happens once, when you enter the formula. Reopening a saved workbook does not re-stage: StreamXLS recognizes the reopen and the cell reads `Disarmed: workbook reopen does not re-stage orders…` instead. To stage again deliberately, change the `tag=` value (or any argument) and enter the formula — re-entering it unchanged does not stage, because StreamXLS never stages a formula it has already answered in that Excel session. TWS reconnects do not re-stage either.
 
 > Editing a staged order's parameters stages a second order — it does not modify the first. Modifying or deleting staged order tickets must be done in TWS.
 
@@ -416,7 +416,7 @@ Start here when a cell does not show what you expect. The deeper per-family rule
 | `#AMBIGUOUS-CONNECTION …` in a `status` cell | The formula names no connection, it had piggybacked the only one, and a second connection now exists | Add a connection argument (`paper`, `gw`, `host=`, `port=`) so the cell names the TWS you mean. See [which connection a status cell reads](manual.md#which-connection-a-status-cell-reads). |
 | `RTD error: Unknown order field 'FOO'` | A misspelled order field | Check the spelling against fields listed in [reference.md §5](reference.md#5-order-read-fields). |
 | `#VALUE!` in arithmetic on a price | Delayed-data annotation is on, so the cell holds text | Strip it with `=VALUE(SUBSTITUTE(A1," (delayed)",""))`, or turn annotation off. |
-| `Disarmed: workbook reopen does not re-stage orders…` | A saved `StageOrder` formula — reopening a workbook does not re-stage | Clear the cell (Delete), then type the formula again to stage deliberately. See [Staging orders](#staging-orders). |
+| `Disarmed: workbook reopen does not re-stage orders…` | A saved `StageOrder` formula — reopening a workbook does not re-stage | Change the `tag=` value (or any argument) and enter the formula to stage deliberately; re-entering it unchanged does not stage. See [Staging orders](#staging-orders). |
 | A number that never moves | Excel is in Manual Calculation mode | Set Calculation back to Automatic, or press F9. |
 
 ## FAQ
@@ -479,7 +479,7 @@ These are the questions that come up while you are building your first sheet. Fo
 ### What if the engine stops?
 
 - Excel keeps the last values it received, then updates when a new instance comes up. So long as the workbook still holds `=RTD()` formulas, Excel re-instantiates the server on its next heartbeat and StreamXLS re-subscribes your data topics; a cell that had no value yet stays `#N/A`.
-- `StageOrder` cells are not re-armed by that recovery — a re-subscription is not a user action, so nothing is staged and the cell reads `Disarmed: …`. Track anything already working with the `orders`/`order` topics, or clear the cell (Delete), then type the formula again to stage deliberately — pressing F2 and Enter on the unchanged formula tells StreamXLS nothing happened, so the cell stays disarmed.
+- `StageOrder` cells are not re-armed by that recovery — a re-subscription is not a user action, so nothing is staged and the cell reads `Disarmed: …`. Track anything already working with the `orders`/`order` topics, or change the `tag=` value (or any argument) and enter the formula to stage deliberately — re-entering it unchanged does not stage.
 
 ### How can I determine the last time of a successful RTD update?
 

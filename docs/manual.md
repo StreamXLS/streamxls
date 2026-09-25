@@ -1040,10 +1040,11 @@ Both return a comma-separated list of permIds, and both take an optional account
 An account-filtered list contains only the orders TWS attributes to one of the named accounts. An order submitted to an advisor *group* rather than a single account (the "All" account, for example) carries no account attribution, so it appears in the unfiltered list and in no account-filtered one — the same reason its `Account` field reads `#N/A` and `FAGroup` names the group instead.
 
 A `permId` is the unique identifier every `order` subscription requires. It is TWS's *permanent order ID*: stable across
-sessions and across API clients. The short per-client order id is not: for an order placed by a
-different client TWS reports an `orderId` of 0 on the wire, and StreamXLS publishes that as `#N/A` rather
-than a `0` that would read like a real id — so `ORDERID` cannot identify such an order, which is why
-nothing here is addressed that way.
+sessions and across API clients. The short per-client order id is not: for an order entered directly
+in TWS, TWS reports an `orderId` of 0 on the wire, and StreamXLS publishes that as `#N/A` rather than a
+`0` that would read like a real id. An order staged by an earlier StreamXLS session (before Excel
+restarted) keeps the id that session gave it, which is that session's handle, not this one's. So
+`ORDERID` cannot identify an order across sessions, which is why nothing here is addressed that way.
 
 ### Reading one order
 
@@ -1793,8 +1794,12 @@ not re-stage them — a reopen is not a deliberate order action. Each such cell 
 Disarmed: workbook reopen does not re-stage orders. To stage a new order, clear the cell and enter the formula again; track existing orders with the orders topics.
 ```
 
-To stage a fresh order, clear the cell (Delete), then type the formula again — pressing F2 and Enter
-on the unchanged formula tells StreamXLS nothing happened, so the cell stays disarmed. Orders you
+To stage a fresh order, change any argument value and enter the formula — the `tag=` value is the
+clean way (`tag=2`, `tag=3`, …; it becomes part of the order's reference, see
+[reference.md §4](reference.md#4-stageorder-write-keys)). Re-entering the formula unchanged does
+not stage, whether you press F2 and Enter or clear the cell and type it again: Excel keeps one
+subscription per distinct formula text and hands the unchanged formula its previous one, and
+StreamXLS never stages a subscription it has already answered in that Excel session. Orders you
 staged or transmitted in an earlier session are unaffected by the reopen — track the live ones with
 the [`orders` and `order` topics](#order-topics).
 
@@ -2038,9 +2043,11 @@ re-subscribes the cell without re-staging the order. See
 
 What to do:
 
-- To stage a fresh order, clear the cell (Delete), then type the formula again — pressing F2 and
-  Enter on the unchanged formula tells StreamXLS nothing happened, so the cell stays disarmed.
-  Recalculating with F9 does not re-enter an RTD formula, so it leaves the cell disarmed.
+- To stage a fresh order, change any argument value — the `tag=` value is the clean way — and enter
+  the formula. Re-entering it unchanged does not stage (F2 and Enter, or clearing the cell and typing
+  it again: Excel hands an unchanged formula its previous subscription, and StreamXLS never stages a
+  subscription it has already answered in that Excel session). Recalculating with F9 does not
+  re-enter an RTD formula, so it leaves the cell disarmed.
 - To follow an order you staged earlier, point the `orders`/`order` topics at it — see
   [Order topics](#order-topics). Orders staged in a previous session are untouched by the reopen.
 
