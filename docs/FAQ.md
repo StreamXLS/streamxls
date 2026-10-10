@@ -100,7 +100,7 @@ Full diagnosis, including how to confirm it from the sheet without a log and wha
 
 ## What versions of Windows / Excel / TWS are supported?
 
-Windows 10 / 11; desktop Microsoft Excel for Windows — Microsoft 365 or Office 2016+, 32- or 64-bit. RTD is a Windows capability, so Excel for Mac, Excel on the web, and mobile Excel are not supported. You must also install the [**TWS API**](https://interactivebrokers.github.io/) — version **10.47.01** is the current minimum.
+Windows 10 / 11; desktop Microsoft Excel for Windows — Microsoft 365 or Office 2016+, 32- or 64-bit. RTD is a Windows capability, so Excel for Mac, Excel on the web, and mobile Excel are not supported. You must also install the [**TWS API**](https://download.interactivebrokers.com/installers/tws-api/index.html) — version **1047.01** is the current minimum. IBKR's download page lists only its current *Stable* and *Latest* releases, both of which are ahead of the minimum and recommended. (Each StreamXLS release is tested against 10.47.01 and against the *Latest* release IBKR listed when it was built.)
 
 ## How does pricing work?
 

@@ -8,7 +8,7 @@ This page gets you started. [manual.md](manual.md) covers contract specification
 
 One function covers every data family — `=RTD("Tws.Rtd",, …)` is the only function you call. Change the arguments and the formula tracks something else: a quote, an account balance, a position, a working order, or an order you stage.
 
-*Fail Loud* — when a value is no longer trustworthy, the cell shows `#N/A` rather than a stale number. Stale data is worse than no data.
+*Fail Loud* — when a value is no longer trustworthy, the cell shows `#N/A` rather than a stale number, with the exceptions listed under [Known issues](manual.md#known-issues). Stale data is worse than no data.
 
 Windows desktop Excel only — StreamXLS is a .NET/COM RTD server and Excel is its front end. It does not ship the TWS API; it binds to the copy already installed on your machine.
 
@@ -19,7 +19,7 @@ Windows desktop Excel only — StreamXLS is a .NET/COM RTD server and Excel is i
 | Windows desktop Excel | StreamXLS is a COM RTD server. Excel on the cloud or a Mac cannot load it. |
 | TWS or IB Gateway, running and logged in | StreamXLS connects to it as an API client. |
 | API access enabled in TWS | **File → Global Configuration → API → Settings → "Enable ActiveX and Socket Clients"**. |
-| TWS API 10.47.01 or newer | The supported floor. StreamXLS uses your installed copy of the API. |
+| TWS API 1047.01 or newer | The supported floor. StreamXLS uses your installed copy of the API. [IBKR's download page](https://download.interactivebrokers.com/installers/tws-api/index.html) lists only its current *Stable* and *Latest* releases; both are newer than 1047.01 — install either. Each StreamXLS release is tested against 1047.01 and against the *Latest* release IBKR listed when it was built. |
 
 The StreamXLS Control Panel confirms the TWS API version at a glance — its TWS API line turns green
 when a supported client is installed. It cannot see the API checkbox inside TWS; confirm that one in
@@ -76,7 +76,7 @@ You can trade some of it away deliberately — turn on **StreamXLS Control Panel
 
 Why at the end: `position` and `positions` read the *first* argument after the topic as the `{Accounts}` filter, and a connection reference ahead of it goes wrong either way — a blank one is swallowed as the account filter, pushing your real account into the contract slot; a named one (`paper`, `gw`, `host=…`) is recognized as a connection but does not fill the account slot, so on `position` the contract slides into it and the field into the contract slot. The first case shows an error; the second can parse clean and leave the formula on `#N/A` for a position you never asked for. (`orders` is immune — it strips connection references before reading the account filter — but keeping the reference last means one rule covers every family. [Details](manual.md#connection-parameters).)
 
-Formulas without one use the default, `127.0.0.1:7496` — with one exception. A `status` formula that names no connection piggybacks StreamXLS's sole connection when there is exactly one; with two or more, or with none created yet, it uses the default. The choice is made when the formula is first subscribed. A formula that took the default keeps it; a formula that piggybacked stops answering — `#AMBIGUOUS-CONNECTION` — if a second connection is ever created, rather than go on reporting one connection out of several without saying which. (Ref: [which connection a status cell reads](manual.md#which-connection-a-status-cell-reads).)
+Formulas without one use the default connection, the Control Panel's **TWS host** and **TWS port** (`127.0.0.1:7496` unless you changed them) — with one exception. A `status` formula that names no connection piggybacks StreamXLS's sole connection when there is exactly one; with two or more, or with none created yet, it uses the default. The choice is made when the formula is first subscribed. A formula that took the default keeps it; a formula that piggybacked stops answering — `#AMBIGUOUS-CONNECTION` — if a second connection is ever created, rather than go on reporting one connection out of several without saying which. (Ref: [which connection a status cell reads](manual.md#which-connection-a-status-cell-reads).)
 
 ## Market data
 
@@ -253,7 +253,7 @@ An `order` topic `STATUS` cell reports the status strings in TWS's own spelling 
 
 ## Staging orders
 
-**StreamXLS stages order tickets; it does not transmit orders to the market.** A `StageOrder` formula builds the order and hands it to TWS, where it waits for you to submit it. StreamXLS has no path that can place an order; the human click is a design choice, not a missing feature.
+**StreamXLS stages order tickets; it cannot create a live order.** A `StageOrder` formula builds the order and hands it to TWS, where it waits for you to submit it. The order reaches the market only when you click **Submit** (or **Transmit**) in TWS; the human click is a design choice, not a missing feature.
 
 ```excel
 =RTD("Tws.Rtd",, "StageOrder", "sym=AAPL", "side=BUY", "shares=100", "type=LMT", "limit=150.05", "exch=SMART")
@@ -265,11 +265,11 @@ Arguments are `key=value` pairs in any order, written one per argument or semico
 
 Non-stock contracts use the same contract keys as everywhere else — add `sec=`, `exp=`, `strike=`, `right=`, `conid=`, and the rest to stage an option, future, or FX order; security type defaults to `STK` and currency to `USD` when omitted. Multi-leg combos (`sec=BAG`) are not supported.
 
-The formula reports the order status back to you — `Sending` while the ticket is in flight, `Staged` once TWS has accepted it without error, then TWS's own status strings as the order progresses there.
+The formula reports the order status back to you — `Sending` while the ticket is in flight, `Staged` once TWS has accepted it without error, then TWS's own status: `PreSubmitted` within about a second for the default deactivated ticket, before you click anything, and TWS's later statuses as the order progresses there.
 
 By default the order arrives in TWS deactivated, visible to your other TWS instances, surviving a TWS restart, with a **Submit** button that sends it to market in one click. Add `park=true` to stage it instead as a local order-entry ticket with a **Transmit** button, visible only in your own TWS. Either way the order cannot reach the market without your action in TWS.
 
-Staging happens once, when you enter the formula. Reopening a saved workbook does not re-stage: StreamXLS recognizes the reopen and the cell shows `Disarmed: workbook reopen does not re-stage orders…` instead. To stage again from a disarmed cell, change the `tag=` value (or any argument) and enter the formula — re-entering it unchanged does not stage. A cell that staged since you opened the workbook does re-stage when you clear it and type the identical formula again: that is a second order, even while the first is still live in TWS. TWS reconnects do not re-stage either.
+Staging happens once, when you enter the formula. Reopening a saved workbook does not re-stage: StreamXLS recognizes the reopen and the cell shows `Disarmed: workbook reopen does not re-stage orders…` instead. To stage again from a disarmed cell, change the `tag=` value (or any argument) and enter the formula — re-entering it unchanged, or switching it off and on with an `IF`, does not stage (unless it is the only StreamXLS formula open in Excel, which ends and restarts StreamXLS's session — see [Reopening a workbook does not re-stage](manual.md#reopening-a-workbook-does-not-re-stage)). A cell that staged since you opened the workbook does re-stage when you clear it and type the identical formula again: that is a second order, even while the first is still live in TWS. TWS reconnects do not re-stage either.
 
 > Editing a staged order's parameters stages a second order — it does not modify the first. Modifying or deleting staged order tickets must be done in TWS.
 
@@ -311,6 +311,7 @@ Field definitions are in [reference.md §8](reference.md#8-position-list-and-opt
 | Field | What it reports |
 |---|---|
 | `IsConnected` | `1` while StreamXLS holds a TWS connection, `0` otherwise. |
+| `ConnectionError` | Why this connection is failing, when StreamXLS knows; empty when no failure is known. Give it the same connection argument as the cells you are checking. |
 | `ConnectionKey` | Which TWS this formula is actually reading, as `host:port:clientId`. |
 | `ActiveTopicCount` | How many distinct subscriptions are open. |
 | `AccountsCSV` | Comma-separated managed account numbers. |
@@ -427,13 +428,13 @@ These are the questions that come up while you are building your first sheet. Fo
 
 ### What happens if TWS closes while I have active RTD requests?
 
-- The connection to TWS drops and account, position, and PnL values stop updating. Time-sensitive values switch to `#N/A` rather than hold a number that could be stale — and account, position and PnL cells show the reason instead (e.g. `RTD error: TWS is not accepting API connections on port 7496 — …`) once StreamXLS knows it.
+- The connection to TWS drops and account, position, and PnL values stop updating. Time-sensitive values switch to `#N/A` rather than hold a number that could be stale — and account, position and PnL cells show the reason instead (e.g. `RTD error: TWS is not accepting API connections on port 7496 — …`) once StreamXLS knows it (under the default **Error display**; with `NA`, `#N/A`, except the reasons that name a fix, listed under [Positions, account, and PnL formulas on disconnect](manual.md#positions-account-and-pnl-formulas-on-disconnect)).
 - Prefer to keep the last values on screen through an outage? Turn on **StreamXLS Control Panel → Settings → Preserve values on disconnect**. A cell that had a value keeps it while no TWS connection is available, and updates it when data returns; a cell that never had one stays `#N/A`. What each family does:
 
   | Cell family | Default (`false`) | With the setting on |
   |---|---|---|
-  | `account`, PnL | `#N/A` for the outage, or its reason when StreamXLS knows it | Last value held, updated on reconnect |
-  | `position` | `#N/A` for the outage, or its reason when StreamXLS knows it | Last value held — except a position the completed reconnect snapshot no longer reports, which stays `#N/A` |
+  | `account`, PnL | `#N/A` for the outage, or its reason when StreamXLS knows it (under the default **Error display**; with `NA`, `#N/A`, except the reasons that name a fix, listed under [Positions, account, and PnL formulas on disconnect](manual.md#positions-account-and-pnl-formulas-on-disconnect)) | Last value held, updated on reconnect |
+  | `position` | `#N/A` for the outage, or its reason when StreamXLS knows it (under the default **Error display**; with `NA`, `#N/A`, except the reasons that name a fix, listed under [Positions, account, and PnL formulas on disconnect](manual.md#positions-account-and-pnl-formulas-on-disconnect)) | Last value held — except a position the completed reconnect snapshot no longer reports, which stays `#N/A` |
   | `order`, orders lists | Working orders `#N/A`; completed facts (`Filled`, `Cancelled`/`ApiCancelled`) preserved. `Inactive` sweeps too — TWS can move an inactive order back to working, so it is not a completed fact. Open-order lists go `#N/A`; all-orders lists stay | Last displayed values held until reconnect updates them |
   | `StageOrder` | Non-terminal staged status `#N/A`, `Inactive` included; `Filled` and `Cancelled` preserved | Identical — this family ignores the setting |
   | Market data | Per-field rules | Per-field rules — the setting does not reach market data |
@@ -443,6 +444,7 @@ These are the questions that come up while you are building your first sheet. Fo
   - `=RTD("Tws.Rtd",, "status", "IsConnected")` → `1` when connected, `0` otherwise
   - `=RTD("Tws.Rtd",, "status", "LastUpdateUtc")` → an Excel date-time value (UTC) marking the last successful update published by the server; empty until the first update arrives
   - `=RTD("Tws.Rtd",, "status", "ActiveTopicCount")` → how many distinct subscriptions the server holds (formulas that resolve to the same subscription count once); this reports what you have asked for, not whether data is arriving
+  - `=RTD("Tws.Rtd",, "status", "ConnectionError")` → why the connection is failing, when StreamXLS knows (the cells' sentence without `RTD error:`, or a reconnecting notice after a drop); empty when no failure is known — `IsConnected` says whether it is up
 - Exactly what each cell family shows on disconnect, reconnect, or a license/trial lapse is documented in [Formula states and lifecycle](manual.md#formula-states-and-lifecycle).
 
 ### I want to open a saved workbook and see the last values, without connecting to TWS. How?

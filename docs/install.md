@@ -4,10 +4,10 @@ The authoritative, step-by-step install and first-run guide — with SmartScreen
 
 **Requirements:**
 
-- Windows 10 / 11
-- Microsoft Excel for Windows (32- or 64-bit)
+- Windows
+- Microsoft Excel (desktop)
 - Interactive Brokers [TWS](https://www.interactivebrokers.com/en/trading/download-tws.php) or [IB Gateway](https://www.interactivebrokers.com/en/trading/ibgateway-latest.php)
-- **[TWS API](https://interactivebrokers.github.io/) v10.47.01** or newer.
+- **[TWS API](https://download.interactivebrokers.com/installers/tws-api/index.html) 1047.01** or later.  (Current stable release is 1050.02.)
 - The Microsoft Visual C++ 2015–2022 Redistributable ([x64](https://aka.ms/vs/17/release/vc_redist.x64.exe); [x86](https://aka.ms/vs/17/release/vc_redist.x86.exe) as well if you run 32-bit Excel). Nearly every Windows PC already has this; a freshly built Windows Server image may not.
 
 ## Install
