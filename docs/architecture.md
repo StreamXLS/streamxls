@@ -148,7 +148,7 @@ sequenceDiagram
 
 Two properties fall out of this design:
 
-1. The cache is overwritten rather than queued, so a long busy period costs intermediate ticks but never leaves Excel holding a stale value.
+1. The cache is overwritten rather than queued, so a long busy period costs intermediate ticks rather than building a backlog: when Excel next reads, it gets the newest value StreamXLS holds.
 2. And `subscribe` / `unsubscribe` are reference-counted at steps 3 and 17 — the mechanism behind [subscription deduplication](#subscription-deduplication).
 
 ## What this does not do

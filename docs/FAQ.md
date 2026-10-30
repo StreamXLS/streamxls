@@ -100,7 +100,7 @@ Full diagnosis, including how to confirm it from the sheet without a log and wha
 
 ## What versions of Windows / Excel / TWS are supported?
 
-Windows 10 / 11; desktop Microsoft Excel for Windows — Microsoft 365 or Office 2016+, 32- or 64-bit. RTD is a Windows capability, so Excel for Mac, Excel on the web, and mobile Excel are not supported. You must also install the [**TWS API**](https://download.interactivebrokers.com/installers/tws-api/index.html) — version **1047.01** is the current minimum. IBKR's download page lists only its current *Stable* and *Latest* releases, both of which are ahead of the minimum and recommended. (Each StreamXLS release is tested against 10.47.01 and against the *Latest* release IBKR listed when it was built.)
+Windows 10, 11, or Server; desktop Excel 2013 or later, including Microsoft 365, 32- or 64-bit. The demo workbook `StreamXLS.xlsm` needs Microsoft 365; for Excel 2013–2021: use `StreamXLS-Excel2016.xlsm` (signed macros) or `StreamXLS-NoMacros.xlsx` from the [examples folder](../examples/). RTD is a Windows capability, so Excel for Mac, Excel on the web, and mobile Excel are not supported. You must also install the [**TWS API**](https://download.interactivebrokers.com/installers/tws-api/index.html) — version **10.47.01** is the current minimum. IBKR's download page lists only its current *Stable* and *Latest* releases, labeled without the first dot (`1051.01` is 10.51.01); both are ahead of the minimum and recommended. (Each StreamXLS release is tested against 10.47.01 and against the *Latest* release IBKR listed when it was built.)
 
 ## How does pricing work?
 
@@ -118,7 +118,7 @@ Every Windows user account accepts the licence agreement once. If StreamXLS was 
 
 Open **Start menu → StreamXLS → StreamXLS Control Panel**, read the agreement, and click **I accept**.
 
-If you decline, the Control Panel closes; open it again whenever you want to accept. The full account of what each formula family shows while the agreement is outstanding is in the manual: ["Accept the StreamXLS licence agreement…" — a Windows account that has not accepted yet](manual.md#accept-the-streamxls-licence-agreement--a-windows-account-that-has-not-accepted-yet).
+If you decline, the Control Panel closes; open it again whenever you want to accept. The full account of what each formula family shows while the agreement is outstanding is in the manual: ["Accept the StreamXLS license agreement…" — a Windows account that has not accepted yet](manual.md#accept-the-streamxls-license-agreement--a-windows-account-that-has-not-accepted-yet).
 
 ## StreamXLS says "the Microsoft Visual C++ runtime is missing"
 

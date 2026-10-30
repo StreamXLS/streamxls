@@ -7,7 +7,7 @@ The authoritative, step-by-step install and first-run guide — with SmartScreen
 - Windows
 - Microsoft Excel (desktop)
 - Interactive Brokers [TWS](https://www.interactivebrokers.com/en/trading/download-tws.php) or [IB Gateway](https://www.interactivebrokers.com/en/trading/ibgateway-latest.php)
-- **[TWS API](https://download.interactivebrokers.com/installers/tws-api/index.html) 1047.01** or later.  (Current stable release is 1050.02.)
+- **[TWS API](https://download.interactivebrokers.com/installers/tws-api/index.html) 10.47.01** or later. IBKR's download page labels releases without the first dot (`1051.01` is 10.51.01) and offers only its current *Stable* and *Latest*, both newer than the minimum — install either.
 - The Microsoft Visual C++ 2015–2022 Redistributable ([x64](https://aka.ms/vs/17/release/vc_redist.x64.exe); [x86](https://aka.ms/vs/17/release/vc_redist.x86.exe) as well if you run 32-bit Excel). Nearly every Windows PC already has this; a freshly built Windows Server image may not.
 
 ## Install

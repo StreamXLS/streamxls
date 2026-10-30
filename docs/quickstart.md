@@ -19,7 +19,7 @@ Windows desktop Excel only — StreamXLS is a .NET/COM RTD server and Excel is i
 | Windows desktop Excel | StreamXLS is a COM RTD server. Excel on the cloud or a Mac cannot load it. |
 | TWS or IB Gateway, running and logged in | StreamXLS connects to it as an API client. |
 | API access enabled in TWS | **File → Global Configuration → API → Settings → "Enable ActiveX and Socket Clients"**. |
-| TWS API 1047.01 or newer | The supported floor. StreamXLS uses your installed copy of the API. [IBKR's download page](https://download.interactivebrokers.com/installers/tws-api/index.html) lists only its current *Stable* and *Latest* releases; both are newer than 1047.01 — install either. Each StreamXLS release is tested against 1047.01 and against the *Latest* release IBKR listed when it was built. |
+| TWS API 10.47.01 or newer | The supported floor. StreamXLS uses your installed copy of the API. [IBKR's download page](https://download.interactivebrokers.com/installers/tws-api/index.html) lists only its current *Stable* and *Latest* releases, labeled without the first dot (`1051.01` is 10.51.01); both are newer than 10.47.01 — install either. Each StreamXLS release is tested against 10.47.01 and against the *Latest* release IBKR listed when it was built. |
 
 The StreamXLS Control Panel confirms the TWS API version at a glance — its TWS API line turns green
 when a supported client is installed. It cannot see the API checkbox inside TWS; confirm that one in
@@ -74,7 +74,7 @@ You can trade some of it away deliberately — turn on **StreamXLS Control Panel
 =RTD("Tws.Rtd",, "position", $A$3, "conid="&$A6, "Position", $A$2)   ' position ($A$3 is the optional account filter)
 ```
 
-Why at the end: `position` and `positions` read the *first* argument after the topic as the `{Accounts}` filter, and a connection reference ahead of it goes wrong either way — a blank one is swallowed as the account filter, pushing your real account into the contract slot; a named one (`paper`, `gw`, `host=…`) is recognized as a connection but does not fill the account slot, so on `position` the contract slides into it and the field into the contract slot. The first case shows an error; the second can parse clean and leave the formula on `#N/A` for a position you never asked for. (`orders` is immune — it strips connection references before reading the account filter — but keeping the reference last means one rule covers every family. [Details](manual.md#connection-parameters).)
+**Why at the end:** `account`, `position` and `positions` read the *first* argument after the topic as the account, and a connection reference ahead of it goes wrong either way — a blank one is taken as the account (on `account`, the consolidated total), pushing your real account into the next slot; a named one (`paper`, `gw`, `host=…`) is recognized as a connection but does not fill the account slot, so on `position` the contract slides into it and the field into the contract slot. The first case shows an error; the second can parse clean and leave the formula on `#N/A` for a position you never asked for. (`orders` is immune — it strips connection references before reading the account filter — but keeping the reference last means one rule covers every family. [Details](manual.md#connection-parameters).)
 
 Formulas without one use the default connection, the Control Panel's **TWS host** and **TWS port** (`127.0.0.1:7496` unless you changed them) — with one exception. A `status` formula that names no connection piggybacks StreamXLS's sole connection when there is exactly one; with two or more, or with none created yet, it uses the default. The choice is made when the formula is first subscribed. A formula that took the default keeps it; a formula that piggybacked stops answering — `#AMBIGUOUS-CONNECTION` — if a second connection is ever created, rather than go on reporting one connection out of several without saying which. (Ref: [which connection a status cell reads](manual.md#which-connection-a-status-cell-reads).)
 
@@ -125,7 +125,7 @@ Some fields carry specific behavior worth knowing before you rely on them:
 
 Formula: `=RTD("Tws.Rtd",, "account", "{AccountNumber}", "{field}"[, "{currency}"])`.
 
-**The account number is required here** — unlike `position` and `positions`, this topic accepts neither a blank nor `*`, and rejects both with an error rather than defaulting to all accounts.  (You can get a list of your account numbers from `=RTD("Tws.Rtd",, "status", "AccountsCSV")`.)
+**The account slot works like the position slots.** Name an account for that account's values, or leave it blank (`""`) or write `*`, or `All`, for the consolidated total of every account on your login, if TWS offers one (if not, the cell usually says so) — on an advisor (FA) login, the total TWS itself keeps for every account under the advisor; on a login with one account, that account. P&L (`DailyPNL`, `UnrealizedPNL`, `RealizedPNL`) and `OpenPositionCount` are per account: name an account for them. (`=RTD("Tws.Rtd",, "status", "AccountsCSV")` lists your account numbers.)
 
 A full list of account fields provided by the API is in the **Accounts** worksheet of the demo workbook, [StreamXLS.xlsm](../examples/StreamXLS.xlsm), which you can open from the StreamXLS Control Panel.
 
@@ -135,10 +135,11 @@ Examples (using `U1234567` as a placeholder for your account number):
 =RTD("Tws.Rtd",, "account", "U1234567", "NetLiquidation")
 =RTD("Tws.Rtd",, "account", "U1234567", "AvailableFunds", "cur=USD")
 =RTD("Tws.Rtd",, "account", "U1234567", "OpenPositionCount")
+=RTD("Tws.Rtd",, "account", "", "NetLiquidation")
 ```
 
 - Omit the currency filter and you get the account-level value, not a per-currency one. Per-currency values do not overwrite it.
-- Some fields are reported **only** per currency, with no account-wide value.  To receive these you must enable a setting in TWS: **Global Configuration → API → Settings → "Prepend `$LEDGER-` prefix to per-currency account values"**
+- Some fields are reported **only** per currency, with no account-wide value.  To receive these you must enable a setting in TWS: **Global Configuration → API → Settings → "Use `$LEDGER-` prefix for per-currency keys"**
 
 ## Positions list
 
@@ -173,7 +174,7 @@ Examples:
 
 Notes on initial load:
 
-- StreamXLS holds back the first `SymbolsCsv` and `ConIdCsv` until the initial positions snapshot completes (the TWS API `positionEnd` callback) — you get the whole list or nothing, not a partial one. Until then those formulas return `#N/A`, which is what the `IFERROR` guard above is for.  A cash-only account shows blank once the snapshot has landed. Watch `PositionDataState` to tell waiting from broken: `Requested` or `Receiving` while the snapshot is in flight, `Ready` once it lands.
+- StreamXLS holds back the first `SymbolsCsv` and `ConIdCsv` until the initial positions snapshot completes (the TWS API `positionEnd` callback) — you get the whole list or nothing, not a partial one. Until then those formulas return `#N/A`, which is what the `IFERROR` guard above is for.  A cash-only account shows blank once the snapshot has landed. Watch `PositionDataState` to tell waiting from broken: `Requested` or `Receiving` while the snapshot is in flight (on an advisor master login with more than 50 sub-accounts it stays `Requested`; see the manual's Known issues), `Ready` once it lands.
 - After the snapshot, subsequent membership changes publish immediately.
 
 ## Position data
@@ -315,7 +316,7 @@ Field definitions are in [reference.md §8](reference.md#8-position-list-and-opt
 | `ConnectionKey` | Which TWS this formula is actually reading, as `host:port:clientId`. |
 | `ActiveTopicCount` | How many distinct subscriptions are open. |
 | `AccountsCSV` | Comma-separated managed account numbers. |
-| `ConfigWarnings` | Configuration-validation warnings, joined with ` \| `; empty when the configuration is clean. |
+| `ConfigWarnings` | Configuration warnings, joined with ` \| `; empty when there are none. |
 | `LastUpdateUtc` | UTC time of the last successful data update published by the server. |
 | `ServerHeartbeatUtc` | UTC time of the server's most recent status pass. |
 | `ServerVersion` | This connection's negotiated TWS `ServerVersion`, or `Not Connected` before one is negotiated. |
@@ -358,13 +359,12 @@ The order and position subsystems each publish a state field and two timestamps,
 | `LastPositionListChangeUtc` | `LastOrderListChangeUtc` | Membership changed — a symbol entered or left the position set; an order appeared, disappeared, or crossed into or out of the working set. |
 | `LastPositionUpdateUtc` | `LastOrderUpdateUtc` | TWS delivered data — but on different terms. See below. |
 
-`PositionDataState` can return all five values below. `OrderDataState` never reports `Idle` — before the
-first order formula is subscribed it returns `Disconnected`, even while the connection is up.
+`PositionDataState` and `OrderDataState` can each return all five values below.
 
 | Value | Meaning |
 |---|---|
 | `Disconnected` | Not connected to TWS. |
-| `Idle` | Positions only: no position subscription is active. |
+| `Idle` | Connected; no position (or order) formula is asking for data — before the first one, or after the last one is removed. |
 | `Requested` | Subscription sent to TWS; waiting for the first callback. |
 | `Receiving` | Callbacks arriving; the initial snapshot is still in progress. |
 | `Ready` | Initial snapshot complete, all data available and presumed current. |
@@ -372,7 +372,7 @@ first order formula is subscribed it returns `Disconnected`, even while the conn
 **The two update stamps are not symmetric, on purpose:**
 
 - `LastOrderUpdateUtc` is a **change** stamp. It advances whenever TWS reports order information that changes a value StreamXLS can put in a cell — a new order, a status or fill move, an order dropping out of the open-order snapshot, and any modification to an order field you can subscribe to (price, quantity, time in force, account, the order flags, and the rest). Read it as "order news arrived, re-read" rather than "this exact cell differs": nothing you could see in a cell is missed, and the stamp does occasionally move for news that ends up displaying the same way. StreamXLS re-polls open orders every 15 seconds by default, and a poll that re-delivers the same orders unchanged leaves this cell alone.
-- `LastPositionUpdateUtc` is a **freshness** stamp. It advances on every position callback StreamXLS accepts, whether the numbers moved or not. TWS pushes positions rather than answering a poll, so an unchanged re-delivery is itself evidence the feed is alive.
+- `LastPositionUpdateUtc` is a **freshness** stamp. It advances on every position callback StreamXLS accepts, whether the numbers moved or not. TWS pushes positions rather than answering a poll: a position row arrives in the full listing StreamXLS requests at each connect (and when you add a position formula) and on each change to a holding, so on a quiet book this stamp stands still.
 
 Because `LastOrderUpdateUtc` is change-gated, it cannot tell a quiet market from a stopped feed — both look like a cell that is not moving. `LastOrderPollUtc` answers that question instead: it advances on every completed open-orders round trip, so while the order feed is healthy it keeps moving on the poll interval, and it freezes if TWS stops answering. A staleness alarm on the *feed* belongs on `LastOrderPollUtc`; an alarm on your *orders* belongs on `LastOrderUpdateUtc`.
 
@@ -415,7 +415,7 @@ Start here when a cell does not show what you expect. The deeper per-family rule
 | `IsConnected` = 0 | The server is running but TWS is not reachable | Confirm TWS or IB Gateway is logged in, has its API socket enabled, and that the port matches what you list in the connection fields of your RTD formulas. |
 | `#N/A` in a data cell while `IsConnected` = 1 | No value has arrived yet, or none is available | Ensure you can access the requested value in TWS. |
 | Orders and positions update, quotes do not | Either the TWS API is too old to carry market data, or TWS is refusing those contracts | Check `MarketDataState`. `TooOld` — update the TWS API to 10.47.01 or newer, per `MarketDataMessage`. `Ok` — the version is fine, and the quote cells themselves carry the reason; the common one is [another session on the same IBKR user holding the market-data line](manual.md#quotes-stopped-but-the-connection-is-healthy). |
-| `#LEDGER-DISABLED …` in a per-currency account cell | Per-currency account values need a TWS setting | Enable **Global Configuration → API → Settings → "Prepend `$LEDGER-` prefix to per-currency account values"**, then reconnect. |
+| `#LEDGER-DISABLED …` in a per-currency account cell | Per-currency account values need a TWS setting | Enable **Global Configuration → API → Settings → "Use `$LEDGER-` prefix for per-currency keys"**. The cells refill at TWS's next account update; close and reopen Excel to refill them at once. |
 | `#AMBIGUOUS-CONNECTION …` in a `status` cell | The formula names no connection, it had piggybacked the only one, and a second connection now exists | Add a connection argument (`paper`, `gw`, `host=`, `port=`) so the cell names the TWS you mean. See [which connection a status cell reads](manual.md#which-connection-a-status-cell-reads). |
 | `RTD error: Unknown order field 'FOO'` | A misspelled order field | Check the spelling against fields listed in [reference.md §5](reference.md#5-order-read-fields). |
 | `#VALUE!` in arithmetic on a price | Delayed-data annotation is on, so the cell holds text | Strip it with `=VALUE(SUBSTITUTE(A1," (delayed)",""))`, or turn annotation off. |
@@ -501,16 +501,20 @@ These are the questions that come up while you are building your first sheet. Fo
 - `LastUpdateUtc` is UTC; `NOW()` is your local clock; `B1` holds the hours to add to local time to reach UTC. Omit it and the comparison is off by hours: west of UTC (all US time zones) the cell sits on `OK` no matter how stale the feed is; east of UTC it sticks on `STALE`.
 - Pick the threshold to suit the instrument — 30 seconds is reasonable for an actively traded name during market hours, and far too tight for an illiquid one.
 - `NOW()` advances only when Excel recalculates — in a workbook whose other cells are still streaming that happens on its own, but in a quiet one press F9 before trusting an `OK`.
+- This catches a feed that has stopped, not one that has fallen behind. `LastUpdateUtc` is the time StreamXLS last published a value, not the time TWS sent it, so it cannot show a backlog: updates that arrive late still advance it.
 
 ### How do I change how often Excel pulls updates?
 
-Excel controls the pull interval, not StreamXLS. Excel calls the server's `RefreshData()` on its own cadence. `Application.RTD.ThrottleInterval` can throttle the refresh rate but not increase it. Set it from the VBA Immediate window:
+Excel controls the pull interval, not StreamXLS: Excel calls the server's `RefreshData()` on its own cadence. `Application.RTD.ThrottleInterval` sets the minimum interval between pulls, in milliseconds (Excel's default is `2000`). Excel saves the value for your Windows user, so it applies to every workbook and stays set after Excel restarts. Set it from the VBA Immediate window (**Alt+F11**, then **Ctrl+G**):
 
 ```vba
-Application.RTD.ThrottleInterval = 250  ' Maximum RTD refresh rate in milliseconds
+Application.RTD.ThrottleInterval = 5000  ' at most one pull every 5 seconds
 ```
 
-This limits Excel's refresh rate; it does not force it.  Regardless of any setting, ultimately Excel decides when it has time to collect RTD updates.
+- Large workbooks — if Excel turns slow to respond while the workbook streams, raise it. Each pull also recalculates every formula that depends on the updated cells. When that takes as long as the interval or longer, Excel can start the next pull as soon as it finishes the last one, so it has little time left for anything else. A larger interval, such as `5000`, leaves Excel time between pulls; your cells then change at most every 5 seconds.
+- Small workbooks — a smaller value, such as `250`, shows changes sooner, at the cost of more of Excel's time.
+
+The setting limits how often Excel pulls; it does not force a pull. Whatever the setting, Excel pulls only when it has time.
 
 ## Where to go next
 

@@ -28,6 +28,7 @@ make a formula do something? Stay here.
 - [Connection status and diagnostics](#connection-status-and-diagnostics)
 - [Formula states and lifecycle](#formula-states-and-lifecycle)
 - [Troubleshooting common issues](#troubleshooting-common-issues)
+  - [Memory and 32-bit Excel](#memory-and-32-bit-excel)
 - [Known issues](#known-issues)
 - [Advanced: environment variables](#advanced-environment-variables)
 - [Further reading](#further-reading)
@@ -70,7 +71,9 @@ Incorrect usage — connection parameters in the server argument are ignored:
 
 ### Connection parameters
 
-Connection parameters can be specified anywhere in the topic strings — order doesn't matter.
+Connection parameters can be specified anywhere in the topic strings, with one exception: a connection reference that
+may be empty belongs at the end (below) — on `account`, `position` and `positions`, a blank argument ahead of the account,
+whether right after the family or after a connection argument, is the account.
 
 The connection parameter can be a cell reference that is sometimes empty — this is the pattern used in the demo workbook's `$A$2`
 "Custom connection" idiom. An empty cell simply means "no connection named," so the formula falls back
@@ -81,10 +84,10 @@ to the default connection. **Put such a reference at the *end* of the argument l
 =RTD("Tws.Rtd",, "position", $A$3, "conid="&$A6, "Position", $A$2)  ' position: $A$3 is the accounts cell
 ```
 
-**Why the end, and not the front.** On `position`, `positions`, and `orders`, the first argument slot is
-the `{Accounts}` filter, which is itself allowed to be blank (blank = all accounts). In that case, a blank connection value
-placed ahead of the contract on those topics is interpreted as an account filter. Trailing is unambiguous on every
-topic, which is why the demo workbook writes it that way.
+**Why the end, and not the front.** On `account`, `position`, `positions`, and `orders`, the first argument slot is
+the account, which is itself allowed to be blank (on `account`, the consolidated total; on the others, all accounts). On
+`account`, `position` and `positions`, a blank connection value placed ahead of the account is therefore read as the
+account. Trailing is unambiguous on every topic, which is why the demo workbook writes it that way.
 
 | Parameter | Format | Description | Default |
 |-----------|--------|-------------|---------|
@@ -156,6 +159,7 @@ choose one; otherwise StreamXLS picks a random client ID for each connection, in
   drawing the same number is a remote possibility rather than something to plan around. Pinning two
   instances to the *same* client ID will fail: TWS rejects the second connection with error
   326 (client ID already in use).
+- Spell a pinned connection the same way in every formula. Two spellings of one TWS — `host=localhost` in one formula and `host=127.0.0.1` in another, both with `clientid=37` (or with the **TWS client ID** setting) — open two connections asking for the same client ID; TWS refuses the second (error 326), and that connection's formulas return `#N/A`.
 - A pinned ID is not rotated for you — it reflects your stated intent. An auto ID may draw a
   fresh random value after a connection failure, including a single pre-handshake drop (TWS closing
   the socket before the handshake completes), which is a signature of TWS rate-limiting that ID.
@@ -172,7 +176,7 @@ override route for scripted or per-machine setups.
 
 ![The StreamXLS Settings dialog: Connection and Market data sections, each setting with its default in view](img/control-panel-settings.png)
 
-`=RTD("Tws.Rtd",, "status", "ConfigWarnings")` reports any setting the engine could not use and is empty when your configuration is clean. The complete list — every setting, its Control Panel label, its environment variable, and its default, plus the rules that decide which route wins
+`=RTD("Tws.Rtd",, "status", "ConfigWarnings")` reports any setting the engine could not use; it also reports when every connection StreamXLS allows is in use, when StreamXLS has run out of memory since it started, and when the log file you configured could not be opened. It is empty when none of these applies. The complete list — every setting, its Control Panel label, its environment variable, and its default, plus the rules that decide which route wins
 — is in [Advanced: environment variables](#advanced-environment-variables).
 
 ---
@@ -461,16 +465,18 @@ the four extension arguments (`cmb=`, `und=`, `opt=`, `genticks=`) in
 anything drawn from a cell because `IF` can drop a whole `key=value` argument cleanly, while nothing
 can drop the stray `/` out of `"BHP@ASX/STK/"&B2`.
 
-**Why rule 3.** On `position` and `positions` the *first* argument is the account filter, and a blank
-there means "all accounts" — so a blank connection cell written ahead of the contract takes that slot
-for itself. If your accounts cell then holds an account number, that number slides into the contract
-slot and the formula fails. Written last, a connection reference is unambiguous on every topic.
+**Why rule 3.** On `account`, `position` and `positions` the *first* argument is the account, and a blank
+there means the consolidated total (on `account`) or all accounts (on the other two) — so a blank
+connection cell written ahead of the account takes that slot for itself. If your account cell then holds
+an account number, that number slides into the next slot: on `position` the formula fails; on `account`
+the cell shows `Account key 'U1234567' was not reported by TWS`. Written last, a connection reference is
+unambiguous on every topic.
 
 Two arguments carry a meaning when left blank, and they are the only ones an empty cell should land in:
 
 | Blank-able argument | Where it sits | What blank means |
 |---|---|---|
-| `{Accounts}` | first argument on `position`, `positions`, `orders` | all accounts (same as `*`) |
+| the account | first argument on `account`, `position`, `positions`, `orders` | on `account`, the consolidated total; on the others, all accounts (same as `*` or `All`) |
 | connection reference | anywhere, follow rule 3 and put it *last* | use the default connection |
 
 **Two places a blank is read differently.** You need neither to write a working formula; they are here
@@ -960,7 +966,7 @@ a field, and returns every position at once.
 ```
 
 The account argument follows the same rules as the `position` topic — an account number, a
-comma-separated list, `*`, or blank for all accounts. Symbols are de-duplicated and sorted
+comma-separated list, or `*`, `All` or blank for all accounts. Symbols are de-duplicated and sorted
 case-insensitively across the accounts you asked for.
 
 `SymbolsCsv` round-trips. Its entries are semicolon-delimited (not comma, despite the name), and
@@ -971,6 +977,8 @@ each one is the same compact contract string described under
 symbol alone is ambiguous. Positions that TWS reported without a ConID are covered by a single
 literal token `Missing ConID`, appended after the numbers (or standing alone if no position has one)
 — so the list can be shorter than `SymbolsCsv`, and its entries do not align index-for-index with it.
+
+If TWS lists one holding twice in an account — once with a ConID and once without — the lists still show what TWS listed: `ConIdCsv` carries the holding's ConID and the `Missing ConID` token, and `SymbolsCsv` names it once when both spellings give the same entry. The account's `OpenPositionCount` and every total over that holding show `RTD error: TWS listed a holding twice (with and without a ConID). …` instead of a number until a later listing from TWS no longer carries the spelling without a ConID (StreamXLS asks TWS for a new listing when it reconnects, and when you add a position formula other than a positions list or an `OpenPositionCount` cell). To help us find out why TWS did this, send us the file `%LOCALAPPDATA%\StreamXLS\duplicate-position.txt`: StreamXLS writes both listings there whatever the **Log file** setting. The file holds your account number and, for both listings, the contract fields, size and average cost.
 
 To timestamp membership changes, read the `status` field alongside the list:
 `=RTD("Tws.Rtd",, "status", "LastPositionListChangeUtc")`. It stamps membership, not value — a
@@ -1043,7 +1051,7 @@ three P&L names also work per position — see [Position topics](#position-topic
 `UnrealizedPNL` still honor the per-currency setting below: with it off they fail loud with
 `#LEDGER-DISABLED` like the other dual-class keys.) For some account types TWS never serves the
 account-level P&L feed — FA fee accounts are the observed case (IBKR ticket #213079) — so those
-three cells stay `#N/A` for such an account; the per-position P&L fields still work.
+three cells stay `#N/A` for such an account; the per-position P&L fields still work. (`OpenPositionCount` can also show the duplicate-position message described under [The positions list](#the-positions-list).)
 
 ### Available accounts
 
@@ -1054,6 +1062,23 @@ three cells stay `#N/A` for such an account; the per-position P&L fields still w
 That returns the managed account numbers this connection received in the TWS handshake. Substitute one
 of them wherever this document writes the placeholder `U1234567`.
 
+### Advisor logins: the consolidated total
+
+On an advisor (FA) login, leave the account blank — `=RTD("Tws.Rtd",, "account", "", "NetLiquidation")` — or
+write `*` or `All` to see the total TWS itself reports for every account under the advisor, not a sum StreamXLS
+computes. Per-currency keys work on it as on any account. P&L is per account: the bare `DailyPNL`, `RealizedPNL`
+and `UnrealizedPNL` show `RTD error: Consolidated P&L is not available from TWS's API — name an account for its
+P&L.` With a currency (`"cur=USD"`), `UnrealizedPNL` and `RealizedPNL` show the consolidated account's own figure
+in that currency. `OpenPositionCount` is counted per account too. If TWS does not offer a consolidated total for
+your login, the cells usually say so: name an account. IBKR also names this total as your advisor account number with
+`A` appended (for example `F1234567A`). That form shows the account values too, but TWS sends no P&L for it,
+`OpenPositionCount` stays `#N/A` on it, and `AccountsCSV` does not list it (the blank form's `AccountCode` shows it) —
+the blank form is the simpler route. On a login with one account, the blank form shows that account.
+
+On an advisor or introducing-broker master login with more than 50 sub-accounts, IBKR does not offer the positions
+request StreamXLS uses, so position, positions-list and `OpenPositionCount` formulas do not fill there: see
+[Known issues](#known-issues).
+
 ### Per-currency values
 
 Append a currency code as a trailing argument to get the per-currency breakdown instead of the
@@ -1063,9 +1088,9 @@ account-level aggregate:
 =RTD("Tws.Rtd",, "account", "U1234567", "CashBalance", "EUR")
 ```
 
-> **This needs a TWS setting.** Enable **Global Configuration → API → Settings → Use "$LEDGER-" prefix for per-currency keys.**, then reconnect. While it is off, TWS gives StreamXLS no way
+> **This needs a TWS setting.** Enable **Global Configuration → API → Settings → Use "$LEDGER-" prefix for per-currency keys**. While it is off, TWS gives StreamXLS no way
 to tell an account-level aggregate from a currency row, so affected cells fail loud with
-`#LEDGER-DISABLED` rather than guess. That also covers the bare, unsuffixed form of the dual-class
+`#LEDGER-DISABLED` rather than guess. Once you enable it, the cells refill at TWS's next account update, usually within seconds while the market is open; to refill them at once, close and reopen Excel. The same text appears within seconds if the setting is turned off while Excel is connected. That also covers the bare, unsuffixed form of the dual-class
 keys — `CashBalance`, `AccruedCash`, `RealizedPnL`, `UnrealizedPnL`, `StockMarketValue`, and the
 others TWS reports in both categories. Keys with no per-currency twin, such as `NetLiquidation`, are
 unaffected. (The setting applies to every API client that connects to that TWS/Gateway instance.)
@@ -1089,7 +1114,7 @@ connection; `order` reads one field of one order. Neither one stages anything.
 - `OpenListCsv` returns the `permId` of working orders only.
 Both return a comma-separated list of permIds, and both take an optional account filter — leave the argument blank, or pass `*`, to show all orders.
 
-An account-filtered list contains only the orders TWS attributes to one of the named accounts. An order submitted to an advisor *group* rather than a single account (the "All" account, for example) carries no account attribution, so it appears in the unfiltered list and in no account-filtered one — the same reason its `Account` field returns `#N/A` and `FAGroup` names the group instead.
+An account-filtered list contains only the orders TWS attributes to one of the named accounts. An order submitted to an advisor *group* rather than a single account (TWS's `All` group, for example) carries no account attribution, so it appears in the unfiltered list and in no account-filtered one — the same reason its `Account` field returns `#N/A` and `FAGroup` names the group instead.
 
 A `permId` is the unique identifier every `order` subscription requires. It is TWS's *permanent order ID*: stable across
 sessions and across API clients. The short per-client order ID is not: for an order entered directly
@@ -1113,9 +1138,11 @@ full list, with aliases, is in [reference.md §5](reference.md#5-order-read-fiel
 
 `AvgFillPrice` is also populated for orders that were already filled or cancelled when StreamXLS
 connected, from the day's execution reports — so reopening a workbook after the close still shows each
-order's average. It returns `#N/A` for a working order until TWS's order status sends its average, and for
-an order that was working when the connection was lost until TWS re-delivers its fill count and average.
+order's average. It returns `#N/A` for a working order with fills until TWS's order status sends its average, and for
+an order that was working when the connection was lost until TWS re-delivers its fill count (and, for an order with fills, its average).
 The cases that stay `#N/A` are listed in [reference.md §5](reference.md#5-order-read-fields).
+
+`CommissionAndFees` is the sum of IB's commission reports for the order's executions. For an order that filled partly on an earlier day, how many earlier days it can include is decided by TWS's Trade Log setting, **Show trades for** (at most 7 days; on IB Gateway, today only); the cases that show `#N/A` are listed in [reference.md §5](reference.md#5-order-read-fields).
 
 ### One cancel word in staged cells
 
@@ -1232,7 +1259,7 @@ These are the most-used optional keys; the complete StageOrder key set is in [re
 | `tag` / `nonce` / `seq` / `submit` / `clienttag` | ID for your tracking — see [OrderRef](#orderref) — or for staging otherwise duplicate tickets |
 | `park` (synonyms `parked`, `saved`) | `TRUE`/`FALSE`, default `FALSE`. Selects how the staged order presents in TWS — see [Two staging shapes](#two-staging-shapes-default-vs-parktrue) |
 
-Advisor (FA) logins need `account=` or `fagroup=`: without one, TWS refuses a default staging (`Error 436: You must specify an allocation…`) and no ticket is created; a `park=true` ticket stages and fails only when you click **Transmit**.
+Advisor (FA) logins need `account=` or `fagroup=`: without one, TWS refuses a default staging (`Error 436: You must specify an allocation…`) and no ticket is created; a `park=true` ticket stages and fails only when you click **Transmit**. Give `fagroup=` the group name exactly as TWS shows it, letter case included: a wrong case is rejected by TWS (`Error 201` with its reason), and the cell shows that reason.
 
 ### OrderRef
 
@@ -1286,7 +1313,7 @@ a second subscription and StreamXLS stages the additional order.
   the working order, or removing the formula while the cell still showed `Sending`). The complete vocabulary,
   with active/terminal classification, is in
   [reference.md §7](reference.md#7-order-status-vocabulary).
-- `Error {code}: {message}` / `RTD error: StageOrder {message}`: TWS order error / validation/connection error. An error at staging usually means no ticket was created. On an advisor login, a missing allocation returns `Error 436` at staging; add `account=` or `fagroup=` to the formula, which stages it as a new order. If a ticket does exist in TWS (a `park=true` ticket fails a missing allocation only when you click **Transmit**), fixing and transmitting it in TWS updates the cell to the working status — TWS's report always wins.
+- `Error {code}: {message}` / `RTD error: StageOrder {message}`: TWS order error / validation/connection error. An error at staging usually means no ticket was created. On an advisor login, a missing allocation returns `Error 436` at staging; add `account=` or `fagroup=` to the formula, which stages it as a new order. If a ticket does exist in TWS (a `park=true` ticket fails a missing allocation only when you click **Transmit**), fixing and transmitting it in TWS updates the cell to the working status — a working status TWS reports replaces the error text.
 
 Reopening a saved workbook does not re-stage a `StageOrder` formula — StreamXLS recognizes the
 reopen and disarms the cell instead of staging. See
@@ -1459,8 +1486,10 @@ or empty because it has not arrived yet — and each subsystem reports its own r
 | `LastPositionUpdateUtc` | `LastOrderUpdateUtc` | UTC time of the last update from TWS — but on different terms: the position stamp advances on *every* callback (freshness), the order stamp only when something actually changed |
 | — | `LastOrderPollUtc` | UTC time the last complete open-orders response arrived, change or not — order-feed liveness, since the order stamp above is change-gated |
 
-The orders/positions asymmetry is deliberate: TWS *pushes* positions, so an unchanged re-delivery is itself
-proof the feed is alive, while orders are *polled* on StreamXLS's own clock, at least every 15 seconds by
+The orders/positions asymmetry is deliberate: TWS *pushes* positions, so the position stamp advances only
+when TWS delivers a position row — the full listing StreamXLS requests at each connect (and when you add a
+position formula), and each change to a holding — and stands still on a quiet book, while orders are
+*polled* on StreamXLS's own clock, at least every 15 seconds by
 default (the **Order refresh** setting, while TWS is answering), so a per-poll stamp would tick forever and no alarm could be built
 on it. See [Data-state and freshness topics](quickstart.md#data-state-and-freshness-topics)
 in the quick start for the full rationale.
@@ -1478,10 +1507,13 @@ is nothing to show. Gate a dashboard's "no positions" banner on the state, not o
 `LastUpdateUtc` is the UTC timestamp of the last successful data update on the connection;
 `ServerHeartbeatUtc` is the UTC timestamp of the server's most recent status pass, which keeps
 advancing whether or not TWS is answering. Difference the two — both are
-UTC, so `ServerHeartbeatUtc` minus `LastUpdateUtc` is a time-zone-safe age for the data — and add a
-conditional format that turns the dashboard a color you cannot ignore when it grows. Comparing a
-stamp against `NOW()` needs a correction first: `NOW()` is local time, so the raw difference is off
-by exactly your UTC offset.
+UTC, so `ServerHeartbeatUtc` minus `LastUpdateUtc` is a time-zone-safe measure of how long the
+connection has gone without an update — and add a conditional format that turns the dashboard a
+color you cannot ignore when it grows. Comparing a stamp against `NOW()` needs a correction first:
+`NOW()` is local time, so the raw difference is off by exactly your UTC offset. This catches a feed
+that has stopped, not one that has fallen behind: `LastUpdateUtc` is the time StreamXLS last
+published a value, not the time TWS sent it, so it cannot show a backlog — updates that arrive late
+still advance it.
 
 ### Version, license, and TWS API metadata
 
@@ -1600,14 +1632,14 @@ This affects all data formulas. Status and metadata formulas keep working — co
 If the license has already lapsed when you open a workbook, data formulas show `#N/A` until Excel finishes opening the workbook, then the same license message. The first time StreamXLS starts in that Excel session, a small StreamXLS window also opens with the message, so you see it even before your cells change; click **Dismiss** to close it. These formulas recover the same way as formulas entered during a lapse (see [Recovering after the license re-verifies](#recovering-after-the-license-re-verifies)).
 
 **The message replaces every data value at once, including quiet ones.** When entitlement flips,
-StreamXLS sweeps every subscribed data formula through the licence gate, so a quote in a closed
+StreamXLS sweeps every subscribed data formula through the license gate, so a quote in a closed
 market that has not ticked for hours changes over with the rest — you will not find a stale number
-sitting behind a lapsed licence. `LICENSE_STATE` updates on the same flip, without re-entry, so it
+sitting behind a lapsed license. `LICENSE_STATE` updates on the same flip, without re-entry, so it
 is the field to read for the authoritative answer.
 
 What is not instant is StreamXLS *noticing*. Entitlement is re-checked about every 6 hours while
-your licence is granting data, so a lapse can be up to that long in reaching the sheet; restart
-Excel to force a check immediately. (An unreachable licence server is a different case — see below.)
+your license is granting data, so a lapse can be up to that long in reaching the sheet; restart
+Excel to force a check immediately. (An unreachable license server is a different case — see below.)
 
 A license-server outage does not blank your dashboard. Once a machine has activated a license,
 StreamXLS holds a local license token and re-syncs it with the license server in the background. If
@@ -1628,13 +1660,13 @@ standing gets no countdown: its expiry date simply moves forward with each renew
 
 To disable these reminders, open the StreamXLS Control Panel and clear **Remind me before my trial or license expires** in the License status box; the setting takes effect immediately and any notification already showing is withdrawn. Two separate switches govern these: that checkbox is StreamXLS's own, and Windows' per-app notification setting for StreamXLS silences them whatever the checkbox says. (A reminder that came due while Windows notifications were switched off for StreamXLS counts as delivered — it is not replayed if you switch them back on later.)
 
-### "Accept the StreamXLS licence agreement…" — a Windows account that has not accepted yet
+### "Accept the StreamXLS license agreement…" — a Windows account that has not accepted yet
 
-Every Windows user account accepts the licence agreement once. If StreamXLS was installed for all
+Every Windows user account accepts the license agreement once. If StreamXLS was installed for all
 users — on a shared machine, or on a pre-built cloud image — the person who installed it accepted for
 themselves only, so your account has not accepted yet. Your data formulas show:
 
-- `Accept the StreamXLS licence agreement in the StreamXLS Control Panel (Start menu → StreamXLS)`
+- `Accept the StreamXLS license agreement in the StreamXLS Control Panel (Start menu → StreamXLS)`
 
 and `LICENSE_STATE` returns `AssentRequired`.
 
@@ -1747,7 +1779,19 @@ this list.
   `#N/A`, including the keep-last families above (`CLOSE`/`OPEN`/`HIGH`/`LOW`/`VOLUME` and a
   frozen `LAST`). This is deliberately stronger than a socket disconnect: nothing may keep serving
   a stale number while TWS is cut off from the market. Values update automatically when
-  connectivity is restored (error 1101/1102).
+  connectivity is restored (error 1101/1102). While TWS reconnects to IBKR it usually sends each
+  real-time contract's current `HIGH`, `LOW` and last trade again, just before it reports the
+  connection restored; on a 1102 StreamXLS keeps those values and shows them once the connection is
+  back (the next bullet covers `LAST`). For some contracts TWS does not resend every field after
+  the outage — a line's `BID` and `ASK` can stay out while its trades resume, and a currency pair's
+  `VOLUME` is not resent — so the formula can return `#N/A` until TWS next sends it, which may not
+  happen that session, rather than clearing when the rest of the sheet resumes. To refill such a
+  formula, press `Ctrl+Alt+F` in TWS (Simulate Market Data Disconnect: TWS reconnects to its data
+  farms and resends the quotes within seconds; a `VOLUME` may still wait for the next trade), or
+  restart TWS or IB Gateway (in TWS,
+  **File → Restart**, which normally does not ask you to log in again). Every formula on the
+  connection pauses while TWS restarts, as it does for any disconnect, usually for under a minute.
+  StreamXLS reconnects on its own, and the formula fills with the rest of the sheet.
   **The two derived prices are the exception.** `MARKETPRICE` and `LASTORCLOSE` exist to always
   give you the most recent price available, outage or not, so they hold their value through a 1100
   as they do through a socket disconnect. If you need a cell that goes loud the moment data stops
@@ -1755,16 +1799,21 @@ this list.
 - **How the cells refill depends on which restore TWS sends**, and the difference matters most for
   `LAST`, `LASTORCLOSE`, and `MARKETPRICE`:
   - **Error 1102, "connectivity restored — data maintained".** TWS is telling us the data it held
-    through the outage is still current, so the `LAST` from just before the outage goes back into
-    the cell as soon as TWS starts serving the contract again (`LASTORCLOSE`/`MARKETPRICE` have
-    been showing it all along). That trade's own details come back with it — `LASTSIZE`,
-    `LASTTIME`, and `LASTEXCH` — so `LASTTIME` still tells you how old the restored price is.
+    through the outage is still current. Where TWS sent the contract's last trade again while it
+    reconnected (previous bullet), `LAST` shows that trade, with the `LASTSIZE`, `LASTTIME` and
+    `LASTEXCH` TWS sent with it — a detail TWS did not send shows `#N/A` until TWS sends it — and
+    `LASTORCLOSE`/`MARKETPRICE` recompute from it, leaving the pre-outage price they held through the
+    outage. Otherwise the `LAST` from just before the outage goes back into the cell as soon as TWS
+    starts serving the contract again (`LASTORCLOSE`/`MARKETPRICE` have been showing it all along).
+    That trade's own details come back with it — `LASTSIZE`, `LASTTIME`, and `LASTEXCH` — so
+    `LASTTIME` still tells you how old the restored price is.
     The exception is a trade IBKR *withdraws* during the outage: nothing brings that one back.
     `LAST` and its three details stay `#N/A`, and `LASTORCLOSE` falls back to the session's
     previous close on the next tick for the contract — `MARKETPRICE` too, unless it still has a
     `BID` and `ASK` to average, in which case it goes on showing that midpoint. `VOLUME` and the
     quote fields (`BID`/`ASK`) are not restored: they describe something other than that one
-    trade, and they refill from TWS's next tick. Any fresh tick that arrives first wins; nothing
+    trade, and they refill from TWS's next tick (a field TWS does not resend can stay `#N/A`; see
+    above). Any fresh tick that arrives first wins; nothing
     is restored across a trading-day boundary, and nothing that TWS retracted while the uplink
     was down comes back. On a delayed (unentitled) feed the same applies to the delayed values,
     and the real-time-named cells they feed.
@@ -1773,6 +1822,7 @@ this list.
     the name trades again. `LASTORCLOSE`/`MARKETPRICE` keep the price they were already showing;
     the session's `CLOSE` (which StreamXLS holds across the outage, because IBKR sends it only once
     per session) fills them only where they had no price to begin with.
+  - **The seconds right after a reconnect, before TWS says which feed the line is on.** `LASTORCLOSE` and `MARKETPRICE` keep showing their last real-time price even if `LAST` already shows a delayed one; once TWS answers (or after two minutes at most) they follow the feed again.
 
 ### Positions, account, and PnL formulas on disconnect
 
@@ -1795,7 +1845,7 @@ disconnect** (environment variable `TWS_RTD_PRESERVE_ON_DISCONNECT=true`; defaul
 the setting on, formulas hold their last-known values until reconnect updates them — except that a
 position confirmed *gone* on reconnect still flips to `#N/A` regardless of the setting.
 
-The setting holds each cell's *own* last-known value, and that includes reopening a workbook: if TWS is unreachable — or still connecting — when the workbook opens, each cell keeps the value the workbook was saved with until the connection delivers a fresh one — though if the connection comes up while the workbook is still opening, a cell can show `#N/A` for a moment before its fresh value arrives. Orders have the same exception as positions: once StreamXLS has checked your orders with TWS, a reopened order cell whose order TWS no longer lists — a DAY order that expired before TWS restarted, or an order that filled in an earlier TWS session, even one saved as `Filled` — shows `#N/A`, and an order-list cell shows the list TWS reports. (With the setting off, cells begin at `#N/A` — or the connection's failure reason, above — and fill in when the connection comes up.) What the setting does not do is carry a number across an *edit*: if you type a new formula — or change an existing one to name a different account, position, order or contract — while the connection is down, the cell shows what StreamXLS holds for what the formula now asks for (a value, if another cell is already showing one for the same thing; otherwise `#N/A` — and an order cell entered during an outage shows `#N/A` until TWS reports the order again, whatever its neighbors show), never the number that cell was showing before you edited it.
+The setting holds each cell's *own* last-known value, and that includes reopening a workbook: if TWS is unreachable — or still connecting — when the workbook opens, each cell keeps the value the workbook was saved with until the connection delivers a fresh one — though if the connection comes up while the workbook is still opening, a cell can show `#N/A` for a moment before its fresh value arrives. Orders have the same exception as positions: once StreamXLS has checked your orders with TWS, a reopened order cell whose order TWS no longer lists — usually an order that filled or was cancelled on an earlier day, even one saved as `Filled` — shows `#N/A`, and an order-list cell shows the list TWS reports. (With the setting off, cells begin at `#N/A` — or the connection's failure reason, above — and fill in when the connection comes up.) What the setting does not do is carry a number across an *edit*: if you type a new formula — or change an existing one to name a different account, position, order or contract — while the connection is down, the cell shows what StreamXLS holds for what the formula now asks for (a value, if another cell is already showing one for the same thing; otherwise `#N/A` — and an order cell entered during an outage shows `#N/A` until TWS reports the order again, whatever its neighbors show), never the number that cell was showing before you edited it.
 
 ### Order formulas on disconnect
 
@@ -1804,7 +1854,8 @@ Order and order-list formulas ride the **Preserve values on disconnect** setting
 - Default (`false`): working order rows go to `#N/A`; the completed facts — `Filled` and
   `Cancelled`/`ApiCancelled` — are preserved, because a re-query of open orders will not re-deliver
   them. Open-order lists (`OpenListCsv`) go `#N/A`; all-orders lists stay.
-- On (`true`): formulas keep their last-known values until reconnect updates them.
+- On (`true`): formulas keep their last-known values until reconnect updates them — except that an order TWS no longer lists when the connection comes back shows `#N/A` for its fill figures and the order details that could have changed, regardless of the setting (next item), as do the order details of one StreamXLS next learns is filled or cancelled without TWS describing it again.
+- If TWS no longer lists a working order at all when the connection comes back, StreamXLS shows it `Cancelled` (except with TWS's **Read-Only API** setting on; see [What happens on reconnect](#what-happens-on-reconnect)), with `#N/A` for its fill figures and for the order details that could have changed during the outage (prices, time in force, commission and the like), under either setting; they fill in if TWS lists the order again. Check the order in TWS. If TWS's completed orders come back empty when the connection returns, or do not come back at all — as can happen while TWS restarts — StreamXLS asks once more about a minute later: an order shown `Cancelled` meanwhile then shows what TWS lists, `Filled` included, and an all-orders list (`ListCsv`) gains the day's earlier orders. If TWS still lists nothing then, the order stays `Cancelled`.
 
 One exception to the typed-formula rule above: once StreamXLS has received your orders from TWS, an
 all-orders list (`ListCsv`) typed while the connection is down is built from the orders StreamXLS
@@ -1833,10 +1884,10 @@ during the outage is *resolved*, not stranded: StreamXLS asks TWS for its comple
 and concludes the formula `Filled` or `Cancelled` (this needs TWS's **Read-Only API** setting off —
 see the [FAQ](FAQ.md#what-do-i-need-on-the-ibkr-side); with it on, TWS refuses that history query,
 and rather than go on showing a working status it can no longer support, the `Status` formula says
-so (or `#N/A` under `TWS_RTD_ERROR_DISPLAY=NA`) — uncheck the setting and reconnect to resolve it). But anything TWS re-delivers in neither snapshot —
-a position closed while you were disconnected, an order TWS reports as neither open nor completed —
-settles on `#N/A` and stays there. A stranded `#N/A` after a reconnect is the honest answer, not a
+so (or `#N/A` under `TWS_RTD_ERROR_DISPLAY=NA`) — uncheck the setting and reconnect to resolve it). But anything TWS re-delivers in neither snapshot — a position closed while you were disconnected — settles on `#N/A` and stays there; a working order TWS reports as neither open nor completed shows `Cancelled` (see [Order formulas on disconnect](#order-formulas-on-disconnect) above). A stranded `#N/A` after a reconnect is the honest answer, not a
 stuck formula.
+
+After TWS restarts, and after IBKR's nightly server reset, TWS reports a partly filled order that was cancelled before then with its full order size where it otherwise reports the unfilled quantity. StreamXLS keeps showing the right `Remaining` and `Quantity` for an order whose size it already knew and that was not resized while StreamXLS could not see it, and for one this TWS placed and cancelled since. Where it first meets such an order in TWS's re-loaded record, both show `#N/A` and stay that way. Partly filled, cancelled orders placed in another TWS or IBKR app can show the same when StreamXLS first meets them completed. Check the order in TWS.
 
 ### Order staging lifecycle
 
@@ -1904,15 +1955,12 @@ remains staged in TWS. Expect two orders, and cancel the unwanted one there.
 
 ### Deleting a cell is not the same as canceling
 
-Deleting or clearing a `StageOrder` cell tells StreamXLS to stop tracking it. StreamXLS attempts
-a best-effort cancel only if the order has not yet been staged (i.e., it is still `Sending`).
-Once a cell shows `Staged` or later, **deleting the formula does not cancel the order in TWS** — the order
-is already there. To cancel a staged order, act in TWS.
+Deleting or clearing a `StageOrder` cell tells StreamXLS to stop tracking it. If the cell still shows `Sending`, StreamXLS stops the send if it has not yet reached TWS. Once the order is in TWS, deleting the formula does not cancel it: act in TWS.
 
 ### Error display: MESSAGE vs. NA
 
 **StreamXLS Control Panel → Settings → Error display** controls how data-error cells appear — market-data
-errors, and the three other conditions listed below (environment variable `TWS_RTD_ERROR_DISPLAY`):
+errors, and the four other conditions listed below (environment variable `TWS_RTD_ERROR_DISPLAY`):
 
 - `MESSAGE` (default): a market-data error shows explanatory text, e.g. `RTD error: Requested
   market data requires additional subscription for API`. This is the fail-loud default recommended
@@ -1934,19 +1982,18 @@ tier being served — see
 [Prices show "(delayed)" and dependent formulas broke](#prices-show-delayed-and-dependent-formulas-broke).
 
 This setting changes only market-data error cells (TWS market-data error callbacks, and the
-withhold when TWS's protocol is too old to stream market data) and three conditions outside
+withhold when TWS's protocol is too old to stream market data) and four conditions outside
 market data: the unconfirmed order `Status` described in [What happens on reconnect](#what-happens-on-reconnect),
 an account value TWS sends blank for the account's only currency
-([reference.md §10](reference.md#10-account-value-keys)), and the connection's failure reason in account, PnL, position and positions-list cells, apart from the four reasons that name a fix (see [Positions, account, and PnL formulas on disconnect](#positions-account-and-pnl-formulas-on-disconnect)). It does not change:
+([reference.md §10](reference.md#10-account-value-keys)), the duplicate-position message in position totals and `OpenPositionCount` (see [The positions list](#the-positions-list)), and the connection's failure reason in account, PnL, position and positions-list cells, apart from the four reasons that name a fix (see [Positions, account, and PnL formulas on disconnect](#positions-account-and-pnl-formulas-on-disconnect)). It does not change:
 
 - License-lapse cells — always the license message text.
 - The `#N/A` disconnect placeholders — Bid/Ask, positions/account/PnL/orders, and swept
   staged orders are always `#N/A`.
 - Formula/validation errors — a bad `StageOrder` key, a missing contract, etc. always show
   `RTD error: …` text, so a malformed formula is never silently blanked.
-- An account key TWS did not report — always its message, `Account key '…' was not reported by TWS
-  (typo? not for this account type? omitted this time?).`, shown without the `RTD error:` prefix
-  ([reference.md §10](reference.md#10-account-value-keys)).
+- An account key TWS did not report — always its message, `Account key '…' was not reported by TWS`,
+  shown without the `RTD error:` prefix ([reference.md §10](reference.md#10-account-value-keys)).
 
 ### The market-data line limit
 
@@ -2035,6 +2082,7 @@ quickest confirmation that a fix took.
 | A cell that *was* showing a number went `#N/A` | TWS withdrew the value — it answered "no value for this field right now", most often at a session reset (yesterday's high or open is no longer the answer, today's does not exist yet) or at the close, where the bid, ask and last withdraw as a price/size pair. StreamXLS shows that answer rather than keeping the old number, and repaints as soon as a real value arrives. `MarketPrice` / `LastOrClose` follow their inputs: a withdrawn input takes them with it when it is the one that produced the number they were showing, and where another input (a trade, a quote, the previous close) can still answer, the cell refills from that in the same update. |
 | Something went wrong upstream | Check TWS itself for error messages |
 | A TWS outage, with **Preserve values on disconnect** off (the default) | Nothing — this is the fail-loud default working. Account, P&L, position and positions-list cells show the reason when StreamXLS knows it (text beginning `RTD error:`, under the default **Error display**; with `NA`, `#N/A`, except the reasons that name a fix, listed under [Positions, account, and PnL formulas on disconnect](#positions-account-and-pnl-formulas-on-disconnect)), otherwise `#N/A`, and order cells show `#N/A` — never a stale number, with one timing exception listed under [Known issues](#known-issues). To keep last-known values on screen instead, turn on **StreamXLS Control Panel → Settings → Preserve values on disconnect** (environment variable `TWS_RTD_PRESERVE_ON_DISCONNECT=true`). Values repaint when data returns; a cell that never had a value stays `#N/A`. |
+| `BID`, `ASK`, `VOLUME` or another field stays `#N/A` after TWS's connection to IBKR came back, while the rest of the sheet updates | TWS did not send that field again after the outage. Press `Ctrl+Alt+F` in TWS (Simulate Market Data Disconnect): the quotes fill within seconds. If a cell is still `#N/A`, restart TWS or IB Gateway (in TWS, **File → Restart**, which normally does not ask you to log in again): StreamXLS reconnects on its own, and the formula fills with the rest of the sheet. See [Market-data formulas on disconnect](#market-data-formulas-on-disconnect). |
 | Too many market-data cells open at once | You have hit your IBKR market-data line limit; the cells over the limit show "Max tickers reached" (or `#N/A`), while cells already streaming are unaffected. Reduce the distinct market-data symbols on screen, or raise your line allowance. See [The market-data line limit](#the-market-data-line-limit). |
 | One symbol alone stays `#N/A` while its neighbors keep updating, with no entitlement or subscription problem | TWS's own market-data record for that instrument has become corrupted — a TWS defect (IBKR ticket #165280), not a StreamXLS problem or a data entitlement. **Press `Ctrl+Alt+F` in TWS** (Simulate Market Data Disconnect) to reset it; if the symbol is still frozen afterward, restart TWS. |
 
@@ -2167,7 +2215,8 @@ The two readings mean different things. `0` is a real number from TWS reporting 
 what a closed position looks like until you trade it again. `#N/A` means nothing matched the
 formula: usually a contract filter that does not match, sometimes a snapshot that has not landed
 yet. Check `=RTD("Tws.Rtd",, "status", "PositionDataState")` first — at `Requested` or `Receiving`
-the feed is still filling and there is nothing to diagnose.
+the feed is still filling and there is nothing to diagnose, except on an advisor login with more than 50
+sub-accounts, where it stays at `Requested` (see [Known issues](#known-issues)).
 
 For an `#N/A` that should be a holding:
 
@@ -2191,6 +2240,12 @@ For an `#N/A` that should be a holding:
    =RTD("Tws.Rtd",, "positions", , "SymbolsCsv")
    ```
 
+### Memory and 32-bit Excel
+
+StreamXLS runs inside Excel and shares its memory. 64-bit Excel has no practical limit of its own. 32-bit Excel can use at most 2 GB (4 GB on 64-bit Windows), shared by your workbook, Excel's own recalculation and StreamXLS, so a large workbook can run it short. When memory runs out, StreamXLS keeps running where it can: it drops the work it could not finish, counts each failure its outermost safeguards caught (some failures are handled without being counted, so the count is a minimum), and reports the count in the `ConfigWarnings` status field (`StreamXLS ran out of memory …`). Some cells may then show `#N/A` or stop updating until the connection comes back, and Excel itself may close. What to do: save your work and restart Excel. If the notice comes back, use 64-bit Excel (if yours is 32-bit) or split the workbook.
+
+For support: turn the file log on (see [The settings](#the-settings)), reproduce the problem and send the log; the relevant lines contain `out of memory` or `OutOfMemory` (any case). If Excel closed, also look in the Windows Application event log for a `.NET Runtime` event 1026 or an `Application Error` entry for `EXCEL.EXE` at that time, and send that too.
+
 ### Still stuck
 
 If quotes or fields look wrong and none of the causes above fit, open an
@@ -2206,8 +2261,12 @@ market-data tick types a given contract actually returns.
 
 Cases where StreamXLS does not behave as the rest of this manual describes, and what to do about each:
 
-- A value from the moment of a disconnect can stay on screen. If TWS sends a value at the moment StreamXLS is handling a disconnect, a few position and order formulas, including one entered during the outage, can return it as if current instead of `#N/A` until the next update or until the connection comes back: a position's size, average cost or unrealized P&L, an order's status or fill figures, and an open-order list (`OpenListCsv`). A positions-list formula can return an empty list for the same time. And if a message from the old connection is still being handled after the new connection is up, any formula, market data included, can return a value from before the disconnect until it next updates. What to do: after a disconnect, check a figure against TWS before you act on it, until the connection has come back and the figure has updated.
+- A value from the moment of a disconnect can stay on screen. If StreamXLS is still handling a message from TWS more than two seconds after the connection drops — which can happen while Excel is busy, for example opening a large workbook, or while the computer is heavily loaded — a formula can return that message's value as if current instead of `#N/A` until that value next updates, even after the connection has come back: a position's size, average cost or unrealized P&L, an order's status or fill figures, an open-order list (`OpenListCsv`), or, rarely, a market-data value; a positions-list formula can return an empty list. Separately, if you delete a position's P&L formula in the same instant as a disconnect, the open-position count can show a wrong number instead of `#N/A` until it next updates. What to do: if Excel was busy or the computer slow when the connection dropped, check a figure against TWS before you act on it, until it has updated since the connection came back.
 - A P&L formula added right after removing the last one can return an old figure. If you remove the last formula that uses a P&L figure — for an account, a position, or a total across positions — and add one again moments later, the new formula can return the figure from before the removal until TWS sends a new one, and if TWS never answers the new request, until the next reconnect. What to do: if a re-added P&L formula has not changed for a while, re-enter it.
+- An account's P&L can show 0 for a moment after TWS's connection to IB comes back, or after you delete an account's last P&L formula and enter it again. TWS can send zeros before the real figures. StreamXLS waits them out only when it is also tracking that account's positions (a position, positions-list or `OpenPositionCount` formula) and **Preserve values on disconnect** is off; otherwise `DailyPNL`, `UnrealizedPNL` and `RealizedPNL` can show 0 until the real figures arrive, usually within a second. What to do: don't act on an account P&L of exactly 0 in the first seconds after it appears.
+- Positions do not fill on an advisor or introducing-broker master login with more than 50 sub-accounts. IBKR does not offer the positions request StreamXLS uses on such a login, so position, positions-list and `OpenPositionCount` formulas stay `#N/A`, `PositionDataState` stays `Requested`, and StreamXLS reconnects to TWS every few minutes trying again; each reconnect briefly interrupts every other formula on that connection, as any disconnect does. What to do: on such a login, keep position, positions-list and `OpenPositionCount` formulas out of your open workbooks: any one of them makes the request and restarts the reconnects. Other formulas do not use it.
+- A position total across accounts adds figures without converting currencies. In a position formula with a blank, `*`, `All` or a comma list of accounts, `MarketValue`, `DailyPNL`, `UnrealizedPNL` and `RealizedPNL` are added as TWS reports each holding's figure, with no conversion between currencies, and `AverageCost` is blended by size the same way; sizes are unaffected. What to do: on a login whose holdings settle in more than one currency, total one account at a time.
+- `HIGH` or `LOW` can miss a new high or low set during a brief break in TWS's connection to IBKR. When TWS reports the connection restored with its data maintained (error 1102) without first reporting it lost (error 1100), StreamXLS asks TWS for every market-data value again and keeps showing `HIGH` and `LOW` meanwhile; if TWS's answer leaves one of them out, that formula keeps returning the value from before the break until the next new session high or low. A break TWS reports as lost (error 1100) and then restored (1102) is a different case: the cells clear at the loss and refill from what TWS resends; see [What happens on reconnect](#what-happens-on-reconnect). What to do: when TWS's own window reports its connection to IBKR restored, check `HIGH` and `LOW` against TWS before you act on them.
 
 ---
 
@@ -2235,7 +2294,7 @@ is the complete public list and the rules that decide which value wins.
 
 Whichever route you use, `=RTD("Tws.Rtd",, "status", "ConfigWarnings")` reports any `TWS_RTD_*`
 value the engine could not take at face value — one it clamped into range, or a selector it fell
-back to the default on — and is empty when your configuration is clean. The file log is off until
+back to the default on — and is empty when your configuration is clean (the same cell also carries the connection-limit and the out-of-memory notices, described with the other status fields). The file log is off until
 you turn it on, so this field is where a mistyped setting becomes visible, never a silent default.
 
 ### The settings
@@ -2249,10 +2308,10 @@ Basic settings — always visible in the Settings dialog:
 | `TWS_RTD_CLIENT_ID` | **TWS client ID** | auto | Fixed API client ID; blank draws a fresh one per Excel process. |
 | `TWS_RTD_MARKET_DATA_TYPE` | **Market data** | `4` | Tier to request: 1 live, 2 frozen, 3 delayed, 4 delayed-then-frozen. |
 | `TWS_RTD_DELAYED_ANNOTATION` | **Delayed-data annotation** | `false` | On, a delayed numeric value renders as the text `150.25 (delayed)` instead of a bare number. |
-| `TWS_RTD_ERROR_DISPLAY` | **Error display** | `MESSAGE` | `MESSAGE` shows the error text in a market-data error cell (and in the three other cases listed under [Error display](#error-display-message-vs-na)); `NA` shows a bare `#N/A`. |
+| `TWS_RTD_ERROR_DISPLAY` | **Error display** | `MESSAGE` | `MESSAGE` shows the error text in a market-data error cell (and in the four other cases listed under [Error display](#error-display-message-vs-na)); `NA` shows a bare `#N/A`. |
 | `TWS_RTD_PRESERVE_ON_DISCONNECT` | **Preserve values on disconnect** | `false` | Off, account/PnL/position/order cells fail loud (`#N/A`) on disconnect — account, PnL, position and positions-list cells show the connection's failure reason instead when StreamXLS knows it (under the default **Error display**; with `NA`, `#N/A`, except the reasons that name a fix, listed under [Positions, account, and PnL formulas on disconnect](#positions-account-and-pnl-formulas-on-disconnect)); on, they hold last-known values. |
-| `TWS_RTD_LOG_FILE` | **Log file** | (none) | Log-file path; blank disables file logging. A second Excel process logs to `<name>.pid<N>.log` beside it. |
-| `TWS_RTD_LOG_LEVEL` | **Log level** | `Info` | Log verbosity: None, Error, Warn, Info, Debug, Trace, Verbose. |
+| `TWS_RTD_LOG_FILE` | **Log file** | (none) | Log-file path, or an existing folder or a path ending in `\` (StreamXLS then writes `StreamXLS.log` inside it); blank disables file logging. A second Excel process logs to `<name>.pid<N>.log` beside it. |
+| `TWS_RTD_LOG_LEVEL` | **Log level** | `Info` | Log verbosity: None, Error, Warn, Info, Debug, Trace, Verbose. Verbose adds a line per market-data tick (gigabytes on a busy sheet); Trace is the level support asks for. |
 | `STREAMXLS_TWSAPI_PATH` | **TWS API location** | (auto) | TWS API folder or `CSharpAPI.dll`; blank auto-detects. See [The TWS API location](#the-tws-api-location). |
 
 ![The Settings dialog's Logging and TWS API location sections, with the advanced-settings disclosure](img/control-panel-settings-logging.png)
@@ -2351,6 +2410,10 @@ a signature earns the *option* to trust the publisher, not silence. Choose **Ena
 **File → Info → Enable Content → Advanced Options… → Trust all documents from this publisher** to stop
 the prompt for good. A copy also ships in this repository: [StreamXLS.xlsm](../examples/StreamXLS.xlsm).
 
+Every timestamp on its sheets shows UTC, the value StreamXLS returns — `LastUpdateUtc`, `ServerHeartbeatUtc`, an order's `FirstSeenUtc` and `LastUpdateUtc`; the workbook does no time-zone conversion. To see local time, add your offset from UTC in a cell of your own, as hours divided by 24: `=A1 + {offset}/24`, with the timestamp in `A1` — `=A1 - 4/24` for New York in summer, `=A1 - 5/24` in winter. A fixed offset stays right only until your clocks next change.
+
+Its account, position and quote grids wrap their formulas in `IFERROR(…, "")`, so wherever StreamXLS returns `#N/A` — during a TWS outage with **Preserve values on disconnect** off, for example — those cells show blank instead, and they fill again on their own when the connection returns. A failure reason (`RTD error: …`) is text, not an error value, so it still shows through. To tell an outage from an empty value, check `IsConnected` on the Status sheet, or add a `ConnectionError` formula, which returns the reason.
+
 ---
 
 ## Quick reference card
@@ -2442,7 +2505,7 @@ The order is staged in TWS and waits there for your click. See
 
 `ConfigWarnings` reports any `TWS_RTD_*` setting StreamXLS could not take at face value — a value
 it clamped into range, a selector it fell back to the default on, a combination that quietly disables
-a feature — and is empty when your configuration is clean. The file log is off by default, so this
+a feature. It also reports when every connection StreamXLS allows is in use (naming them, so you can find a duplicate or a typo), when StreamXLS has run out of memory since it started (see [Memory and 32-bit Excel](#memory-and-32-bit-excel)), and when the log file you configured could not be opened. It is empty when none of these applies. The file log is off by default, so this
 field is where a settings typo becomes visible; park it in a corner of the sheet and read it after
 any configuration change.
 
