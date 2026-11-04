@@ -174,7 +174,7 @@ Examples:
 
 Notes on initial load:
 
-- StreamXLS holds back the first `SymbolsCsv` and `ConIdCsv` until the initial positions snapshot completes (the TWS API `positionEnd` callback) — you get the whole list or nothing, not a partial one. Until then those formulas return `#N/A`, which is what the `IFERROR` guard above is for.  A cash-only account shows blank once the snapshot has landed. Watch `PositionDataState` to tell waiting from broken: `Requested` or `Receiving` while the snapshot is in flight (on an advisor master login with more than 50 sub-accounts it stays `Requested`; see the manual's Known issues), `Ready` once it lands.
+- StreamXLS holds back the first `SymbolsCsv` and `ConIdCsv` until the initial positions snapshot completes (the TWS API `positionEnd` callback) — you get the whole list or nothing, not a partial one. Until then those formulas return `#N/A`, which is what the `IFERROR` guard above is for.  A cash-only account shows blank once the snapshot has landed. Watch `PositionDataState` to tell waiting from broken: `Requested` or `Receiving` while the snapshot is in flight, `Ready` once it lands.
 - After the snapshot, subsequent membership changes publish immediately.
 
 ## Position data
@@ -364,7 +364,7 @@ The order and position subsystems each publish a state field and two timestamps,
 | Value | Meaning |
 |---|---|
 | `Disconnected` | Not connected to TWS. |
-| `Idle` | Connected; no position (or order) formula is asking for data — before the first one, or after the last one is removed. |
+| `Idle` | Connected, but StreamXLS has no request for this data. |
 | `Requested` | Subscription sent to TWS; waiting for the first callback. |
 | `Receiving` | Callbacks arriving; the initial snapshot is still in progress. |
 | `Ready` | Initial snapshot complete, all data available and presumed current. |
