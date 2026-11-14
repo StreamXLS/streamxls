@@ -11,10 +11,8 @@ derivative works from the Content, except for brief quotation with attribution a
 permitted by applicable fair-use law, or with the prior written permission of
 StreamXLS LLC.
 
-The StreamXLS software product — the COM server binary and its installer — is not
-open source and is not licensed by this repository. It is distributed under a
-separate End-User License Agreement that accompanies the installer. Commercial
-source-license, OEM, and integration inquiries: see docs/licensing.md.
+The StreamXLS software product is not open source and is not licensed by this repository.
+It is distributed under a separate End-User License Agreement that accompanies the installer.
 
 THE CONTENT IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED.
 IN NO EVENT SHALL STREAMXLS LLC BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER
