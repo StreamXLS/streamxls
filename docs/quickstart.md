@@ -213,7 +213,7 @@ As with `positions`, `{Accounts}` accepts a comma-separated account filter; use 
 
 | Formula | Returns |
 |---|---|
-| `=RTD("Tws.Rtd",, "orders", "{Accounts}", "ListCsv")` | Every order in the TWS book, including filled and cancelled. |
+| `=RTD("Tws.Rtd",, "orders", "{Accounts}", "ListCsv")` | Every order in the TWS book, including filled and canceled. |
 | `=RTD("Tws.Rtd",, "orders", "{Accounts}", "OpenListCsv")` | Working orders only — `Filled`, `Cancelled` and `ApiCancelled` are excluded as completed, and `Inactive` is excluded as not working (StreamXLS does not treat it as final: TWS can move it back to working). |
 
 **Mind the delimiter** — the `orders` lists are comma-separated, while the `positions` lists above are semicolon-separated. In Excel 365:

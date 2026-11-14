@@ -1136,7 +1136,7 @@ Name the field you want. The field vocabulary is a closed set — an
 unknown field fails loud in the cell rather than returning a blank you might read as a zero. The
 full list, with aliases, is in [reference.md §5](reference.md#5-order-read-fields).
 
-`AvgFillPrice` is also populated for orders that were already filled or cancelled when StreamXLS
+`AvgFillPrice` is also populated for orders that were already filled or canceled when StreamXLS
 connected, from the day's execution reports — so reopening a workbook after the close still shows each
 order's average. It returns an average only while it has data for every filled share, so it can return `#N/A` for a working order with new fills until TWS's order status sends the average for that fill count. Likewise for
 an order that was working when the connection was lost until TWS re-delivers its fill count (and, for an order with fills, its average).
@@ -1443,7 +1443,7 @@ assigned one can rotate while a cell is subscribed, so naming it in a sentence a
 name an ID the cell never bound to. Host and port cannot change under a subscribed cell.
 
 Read it as a message about the *formula*, not about TWS: the connections themselves are fine, and
-cells that name their connection are unaffected. This replaces the older behaviour, in which such a
+cells that name their connection are unaffected. This replaces the older behavior, in which such a
 cell went on reporting the connection it had piggybacked — a `1` or a `0` that looked like an answer
 about your workbook but was an answer about one connection out of several, chosen by whichever
 formula Excel happened to evaluate first.
@@ -1591,7 +1591,7 @@ Updates are offered, never forced. A licensed copy may keep running an old build
   (x.y.z).`, or a louder `IMPORTANT: a critical update (x.y.z) is available - install it before
   continuing.` for a critical update.
 - **"No update available" and "nobody has checked" are different answers, and StreamXLS gives you
-  different cells for them.** `UPDATE_AVAILABLE` and `UPDATE_CRITICAL` return `0` only when a check
+  different values for them.** `UPDATE_AVAILABLE` and `UPDATE_CRITICAL` return `0` only when a check
   actually completed and found nothing newer. Until then — a fresh install before its first check,
   a computer where the scheduled task could not be registered, a machine that cannot reach the
   update server — both return `#N/A`, and `UPDATE_MESSAGE` explains why and names the remedy that fits
@@ -1846,7 +1846,7 @@ disconnect** (environment variable `TWS_RTD_PRESERVE_ON_DISCONNECT=true`; defaul
 the setting on, formulas hold their last-known values until reconnect updates them — except that a
 position confirmed *gone* on reconnect still flips to `#N/A` regardless of the setting.
 
-The setting holds each cell's *own* last-known value, and that includes reopening a workbook: if TWS is unreachable — or still connecting — when the workbook opens, each cell keeps the value the workbook was saved with until the connection delivers a fresh one — though if the connection comes up while the workbook is still opening, a cell can show `#N/A` for a moment before its fresh value arrives. Orders have the same exception as positions: once StreamXLS has checked your orders with TWS, a reopened order cell whose order TWS no longer lists — usually an order that filled or was cancelled on an earlier day, even one saved as `Filled` — shows `#N/A`, and an order-list cell shows the list TWS reports. (With the setting off, cells begin at `#N/A` — or the connection's failure reason, above — and fill in when the connection comes up.) What the setting does not do is carry a number across an *edit*: if you type a new formula — or change an existing one to name a different account, position, order or contract — while the connection is down, the cell shows what StreamXLS holds for what the formula now asks for (a value, if another cell is already showing one for the same thing; otherwise `#N/A` — and an order cell entered during an outage shows `#N/A` until TWS reports the order again, whatever its neighbors show), never the number that cell was showing before you edited it.
+The setting holds each cell's *own* last-known value, and that includes reopening a workbook: if TWS is unreachable — or still connecting — when the workbook opens, each cell keeps the value the workbook was saved with until the connection delivers a fresh one — though if the connection comes up while the workbook is still opening, a cell can show `#N/A` for a moment before its fresh value arrives. Orders have the same exception as positions: once StreamXLS has checked your orders with TWS, a reopened order cell whose order TWS no longer lists — usually an order that filled or was canceled on an earlier day, even one saved as `Filled` — shows `#N/A`, and an order-list cell shows the list TWS reports. (With the setting off, cells begin at `#N/A` — or the connection's failure reason, above — and fill in when the connection comes up.) What the setting does not do is carry a number across an *edit*: if you type a new formula — or change an existing one to name a different account, position, order or contract — while the connection is down, the cell shows what StreamXLS holds for what the formula now asks for (a value, if another cell is already showing one for the same thing; otherwise `#N/A` — and an order cell entered during an outage shows `#N/A` until TWS reports the order again, whatever its neighbors show), never the number that cell was showing before you edited it.
 
 ### Order formulas on disconnect
 
@@ -1855,7 +1855,7 @@ Order and order-list formulas ride the **Preserve values on disconnect** setting
 - Default (`false`): working order rows go to `#N/A`; the completed facts — `Filled` and
   `Cancelled`/`ApiCancelled` — are preserved, because a re-query of open orders will not re-deliver
   them. Open-order lists (`OpenListCsv`) go `#N/A`; all-orders lists stay.
-- On (`true`): formulas keep their last-known values until reconnect updates them — except that an order TWS no longer lists when the connection comes back shows `#N/A` for its fill figures and the order details that could have changed, regardless of the setting (next item), as do the order details of one StreamXLS next learns is filled or cancelled without TWS describing it again.
+- On (`true`): formulas keep their last-known values until reconnect updates them — except that an order TWS no longer lists when the connection comes back shows `#N/A` for its fill figures and the order details that could have changed, regardless of the setting (next item), as do the order details of one StreamXLS next learns is filled or canceled without TWS describing it again.
 - If TWS no longer lists a working order at all when the connection comes back, StreamXLS shows it `Cancelled` (except with TWS's **Read-Only API** setting on, where `Status` says its final status is unconfirmed and its other formulas show `#N/A`; see [What happens on reconnect](#what-happens-on-reconnect)), with `#N/A` for its fill figures and for the order details that could have changed during the outage (prices, time in force, commission and the like), under either setting; they fill in if TWS lists the order again. Check the order in TWS. If TWS's completed orders come back empty when the connection returns, or do not come back at all — as can happen while TWS restarts — StreamXLS asks once more about a minute later: an order shown `Cancelled` meanwhile then shows what TWS lists, `Filled` included, and an all-orders list (`ListCsv`) gains the day's earlier orders. If TWS still lists nothing then, the order stays `Cancelled`.
 
 One exception to the typed-formula rule above: once StreamXLS has received your orders from TWS, an
@@ -1888,7 +1888,7 @@ and rather than go on showing a working status it can no longer support, the `St
 so (or `#N/A` under `TWS_RTD_ERROR_DISPLAY=NA`) and the order's other formulas show `#N/A`, under either **Preserve values on disconnect** setting, until TWS reports them again — uncheck **Read-Only API** and reconnect to resolve it). But anything TWS re-delivers in neither snapshot — a position closed while you were disconnected — settles on `#N/A` and stays there; a working order TWS reports as neither open nor completed shows `Cancelled` (see [Order formulas on disconnect](#order-formulas-on-disconnect) above). A stranded `#N/A` after a reconnect is the honest answer, not a
 stuck formula.
 
-After TWS restarts, and after IBKR's nightly server reset, TWS reports a partly filled order that was cancelled before then with its full order size where it otherwise reports the unfilled quantity. StreamXLS keeps showing the right `Remaining` and `Quantity` for an order whose size it already knew and that was not resized while StreamXLS could not see it, and for one this TWS placed and cancelled since. Where it first meets such an order in TWS's re-loaded record, both show `#N/A` and stay that way. Partly filled, cancelled orders placed in another TWS or IBKR app can show the same when StreamXLS first meets them completed. Check the order in TWS.
+After TWS restarts, and after IBKR's nightly server reset, TWS reports a partly filled order that was canceled before then with its full order size where it otherwise reports the unfilled quantity. StreamXLS keeps showing the right `Remaining` and `Quantity` for an order whose size it already knew and that was not resized while StreamXLS could not see it, and for one this TWS placed and canceled since. Where it first meets such an order in TWS's re-loaded record, both show `#N/A` and stay that way. Partly filled, canceled orders placed in another TWS or IBKR app can show the same when StreamXLS first meets them completed. Check the order in TWS.
 
 ### Order staging lifecycle
 
@@ -2070,6 +2070,10 @@ once per Excel session, so an API installed while Excel is open is not seen unti
 
 `=RTD("Tws.Rtd",, "TWSAPI_STATE")` returns `NotFound` here and `Ok` once the API resolves — the
 quickest confirmation that a fix took.
+
+### The Control Panel shows "TWS API not detected" or an older TWS API
+
+On StreamXLS 1.1.6 or earlier, after you install TWS API 1050.02 or later, the Control Panel shows "TWS API not detected", or names an older TWS API than the one you installed. Those StreamXLS versions do not look in the folder IBKR's installer now uses for each release, such as `C:\TWS API 1050.02`. Install StreamXLS 1.1.7 from the [download page](https://streamxls.com/download), or type that folder (the release's own folder, not one inside it) in **StreamXLS Control Panel → Settings → TWS API location** and click **Save**; then reopen the Control Panel and restart Excel.
 
 ### A cell shows #N/A
 
@@ -2271,6 +2275,8 @@ Cases where StreamXLS does not behave as the rest of this manual describes, and 
 - A `StageOrder` formula can miss TWS's reason for a cancel or rejection while another session's order has the same order ID. While the other session's order stays listed, StreamXLS keeps every error TWS reports on that ID except the duplicate-order-ID error (103) out of the formula, so the formula can show `Cancelled`, or `Inactive` for a rejection, without the reason. **What to do:** read the reason in TWS's own order window.
 - An update replaces the installed demo workbook. Each update overwrites the installed `StreamXLS.xlsm`, whether or not you changed it, so anything you saved in that file is lost. **What to do:** save your own work in a copy of the demo workbook.
 - TWS API client ID collisions can silently break P&L data streams on an existing connection. If any API client attempts a second connection to TWS with a client ID already in use, TWS refuses it with error 326. But the existing connection's account and position P&L fields (`DailyPNL`, `RealizedPNL`, `UnrealizedPNL`, and a position's `MarketValue`) can stop updating and keep returning their last value. In this condition the connection's `IsConnected` stays 1, its `ConnectionError` stays empty and, as other data arrives, its `LastUpdateUtc` keeps advancing. **What to do:** restart the Excel instance with the client ID that collided. Avoid this problem by using automatic client IDs (the default for StreamXLS), or by ensuring that all API clients use unique client IDs.
+- After a lost connection comes back, `CLOSE` can show the earlier session's close. TWS moves `CLOSE` to the new session some time after the market closes (for U.S. stocks, at about 8:05 PM ET). When the connection to TWS returns after that and TWS does not send `CLOSE` again, `CLOSE`, `LASTORCLOSE` and `MARKETPRICE` keep showing the earlier close until TWS sends a new value. **What to do:** after an outage that lasts past that time, restart Excel before relying on those values.
+- An argument written before `"StageOrder"` can be ignored without an error. A mistyped connection argument there (for example `"papr"` for `"paper"`) is ignored, so the order is staged on your default connection (live TWS, port 7496, unless you changed the **TWS port** setting); an order key written there as a bare word (for example `"hidden"`) is ignored too, so the order is staged without it. Either way the formula stages the order and shows no error. **What to do:** write `"StageOrder"` first, as every example in this manual does, put any connection argument after it, and check the staged order in TWS before you submit it.
 
 ---
 

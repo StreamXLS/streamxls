@@ -22,7 +22,7 @@ StreamXLS is a separate, independent implementation of the same `IRtdServer` COM
 
 - **Topic schema beyond Market Data.** Account values (130+ fields, per-currency), Positions (with streaming P&L), Order monitoring ([roughly 80 fields](reference.md#5-order-read-fields)), and Order staging via a `StageOrder` topic family are all exposed as `=RTD()` formulas.
 - **Excel UI-priority handling.** Excel stops calculating while you edit a formula, interact with a dialog box or setting, or while Excel is otherwise busy. This tends to break realtime data feeds that expect the application to always be available for updates.  The RTD protocol is different: StreamXLS listens to updates and maintains the latest data internally, then provides that only when Excel asks and is ready to receive it.
-- **Multi-instance behaviour.** Separate `EXCEL.EXE` processes can connect to the same TWS (or IB Gateway) instance.  And a single Excel workbook can connect to multiple TWS/Gateway instances.
+- **Multi-instance behavior.** Separate `EXCEL.EXE` processes can connect to the same TWS (or IB Gateway) instance.  And a single Excel workbook can connect to multiple TWS/Gateway instances.
 - **Subscription deduplication within a process.** Many `=RTD()` cells referencing the same logical topic share a single upstream subscription.
 - **Automatic reconnection** and resubscription.
 - **Test coverage** engineered for reliability — every release is verified with a suite of more than 3,000 automated tests.
@@ -86,7 +86,7 @@ There are two ways to be in that situation:
 
 From version 1.1.1 the installer tells you when the account you are installing from cannot use a single-user installation, and checks at the end of the installation that Excel will actually be able to start StreamXLS. The Control Panel runs the same check when it opens.
 
-This is standard Windows behaviour for installations registered to one user, not specific to any one Windows version. If only *some* cells show `#N/A` while others stream normally, this is not the cause — if the dead ones are quote cells, see [Quotes stopped](#quotes-stopped--no-market-data-during-competing-live-session); otherwise see [Field reference](reference.md) for the per-field conditions.
+This is standard Windows behavior for installations registered to one user, not specific to any one Windows version. If only *some* cells show `#N/A` while others stream normally, this is not the cause — if the dead ones are quote cells, see [Quotes stopped](#quotes-stopped--no-market-data-during-competing-live-session); otherwise see [Field reference](reference.md) for the per-field conditions.
 
 ## Quotes stopped — `No market data during competing live session`
 
@@ -112,9 +112,9 @@ Live data stops at the end of the trial or paid period. Nothing is deleted — t
 
 StreamXLS warns you — as Windows notifications raised by its Control Panel — before your trial ends, and before a verification problem can stop your data. The notifications appear as a free trial nears its end (roughly seven days out, then three, then one, then on the last day) and, once a paid license's stored token is running short of time to re-verify, about a week, three days and one day before it runs out; that is the case a reconnection (or allowlisting the license server through a firewall or VPN) resolves. At most one such notification appears per day, and a license that has already lapsed is announced once rather than repeatedly. A healthy paid subscription is not counted down to: its stored date is the end of the current billing period and moves forward each time you renew. The reminders can be switched off in the Control Panel ("Remind me before my trial or license expires"), which takes effect immediately — including withdrawing a reminder still sitting in the notification center — and Windows' own per-app notification settings apply to them like any other notification.
 
-## StreamXLS says "Accept the StreamXLS licence agreement in the StreamXLS Control Panel"
+## StreamXLS says "Accept the StreamXLS license agreement in the StreamXLS Control Panel"
 
-Every Windows user account accepts the licence agreement once. If StreamXLS was installed for all users — on a shared machine, or on a pre-built image — the person who installed it accepted for themselves only, so your account has not accepted yet. `LICENSE_STATE` returns `AssentRequired` while that is the case.
+Every Windows user account accepts the license agreement once. If StreamXLS was installed for all users — on a shared machine, or on a pre-built image — the person who installed it accepted for themselves only, so your account has not accepted yet. `LICENSE_STATE` returns `AssentRequired` while that is the case.
 
 Open **Start menu → StreamXLS → StreamXLS Control Panel**, read the agreement, and click **I accept**.
 
@@ -122,7 +122,7 @@ If you decline, the Control Panel closes; open it again whenever you want to acc
 
 ## StreamXLS says "the Microsoft Visual C++ runtime is missing"
 
-StreamXLS's licensing component needs the Microsoft Visual C++ 2015–2022 runtime. Nearly every Windows PC already has it — many programs install it — but a freshly built Windows Server image or VPS template may not. Until it is present StreamXLS cannot verify any licence: `LICENSE_STATE` returns `Unknown`, and the cells that need a licence carry that message instead of data.
+StreamXLS's licensing component needs the Microsoft Visual C++ 2015–2022 runtime. Nearly every Windows PC already has it — many programs install it — but a freshly built Windows Server image or VPS template may not. Until it is present StreamXLS cannot verify any license: `LICENSE_STATE` returns `Unknown`, and the cells that need a license carry that message instead of data.
 
 Install the [x64 redistributable](https://aka.ms/vs/17/release/vc_redist.x64.exe) (and the [x86 one](https://aka.ms/vs/17/release/vc_redist.x86.exe) as well if you use 32-bit Excel), then restart Excel. StreamXLS itself does not need to be reinstalled. If you are building an image, install the runtime on the template first — see [Pre-installing StreamXLS in a Windows image](install.md#pre-installing-streamxls-in-a-windows-image).
 

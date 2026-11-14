@@ -30,7 +30,7 @@ flowchart LR
 
 ## Connection model
 
-Each `EXCEL.EXE` process that loads StreamXLS gets its own instance of the COM server. This is the standard Excel + COM behaviour — every instance of Excel loads its own copy of an in-process server — and StreamXLS leans into it rather than fighting it.
+Each `EXCEL.EXE` process that loads StreamXLS gets its own instance of the COM server. This is the standard Excel + COM behavior — every instance of Excel loads its own copy of an in-process server — and StreamXLS leans into it rather than fighting it.
 
 Within one instance, a connection is identified by the triple `host:port:clientId`, and every distinct triple that appears in that process's topic strings gets its own TWS API socket. The endpoint is chosen per formula (ref. [connection parameters](manual.md#connection-parameters)), so a single workbook can receive data from simultaneously from more than one TWS or IB Gateway session.
 
@@ -84,7 +84,7 @@ Microsoft Excel gives its UI thread priority over RTD updates. IBKR's own Excel 
 
 > [B]y design, Microsoft Excel gives precedence to the UI. Updates are ignored when a modal dialog is displayed, a cell is being edited, or Excel is busy. ([IBKR Campus, Excel RTD page](https://www.interactivebrokers.com/campus/ibkr-api-page/excel-rtd/))
 
-A naive RTD implementation drops the data delivered during those periods. StreamXLS maintains its internal cache independently of Excel's polling, so a modal dialog open over a streaming chain does not cause data loss — when Excel returns to a ready state, it reads the latest cached value rather than a stale or null one. The [demo video](https://vimeo.com/1191256765) shows this behaviour explicitly (a modal Format Cells dialog opened over a streaming options chain).
+A naive RTD implementation drops the data delivered during those periods. StreamXLS maintains its internal cache independently of Excel's polling, so a modal dialog open over a streaming chain does not cause data loss — when Excel returns to a ready state, it reads the latest cached value rather than a stale or null one. The [demo video](https://vimeo.com/1191256765) shows this behavior explicitly (a modal Format Cells dialog opened over a streaming options chain).
 
 ## Topic schema
 
@@ -95,8 +95,8 @@ StreamXLS exposes six topic families. The exact topic-string grammar — every f
 | **Status** | `status, <field>` | `IsConnected`, `ActiveTopicCount`, `LastUpdateUtc`, `ServerHeartbeatUtc`, `PositionDataState`, `OrderDataState`, `AccountsCSV` |
 | **Market Data** | `<contract>, <field>` | top-of-book quotes (bid / ask / last / size / volatility / Greeks), option-chain enumeration (expirations / strikes / strike step); derived fields `MarketPrice`, `LastOrClose` |
 | **Accounts** | `account, <AccountNumber>, <field>[, <currency>]` | the full TWS-delivered account value set (~136 keys on a typical margin account; the set varies by account type) including NLV, buying power, currency balances, margin, plus computed fields like OpenPositionCount |
-| **Positions** | `position, <Accounts>, <contract>, <field>` and `positions, <Accounts>, <ListField>` | per-account, per-contract position size, average cost, market value, realised / unrealised P&L; positions-list topics return `SymbolsCsv` / `ConIdCsv` / `PositionsChangedUtc` |
-| **Order monitoring** | `orders, <Accounts>, <ListField>` and `order, <permId>, <field>` | list topics return `ListCsv` (all orders, including filled/cancelled) or `OpenListCsv` (open only) as permId lists; per-order topics address an order by its **permId** and return [roughly 80 read fields, a closed set](reference.md#5-order-read-fields) including `Status`, `Filled`, `Remaining`, `LmtPrice`, `AvgFillPrice`, `Side`, `OrderType`, `TIF` |
+| **Positions** | `position, <Accounts>, <contract>, <field>` and `positions, <Accounts>, <ListField>` | per-account, per-contract position size, average cost, market value, realized / unrealized P&L; positions-list topics return `SymbolsCsv` / `ConIdCsv` / `PositionsChangedUtc` |
+| **Order monitoring** | `orders, <Accounts>, <ListField>` and `order, <permId>, <field>` | list topics return `ListCsv` (all orders, including filled/canceled) or `OpenListCsv` (open only) as permId lists; per-order topics address an order by its **permId** and return [roughly 80 read fields, a closed set](reference.md#5-order-read-fields) including `Status`, `Filled`, `Remaining`, `LmtPrice`, `AvgFillPrice`, `Side`, `OrderType`, `TIF` |
 | **Order staging** | `StageOrder, <key>=<value>, ...` | stages an order as the side-effect of subscribing; topic returns a status string (`Sending` → `Staged`, or `StageOrder Error: <message>`) |
 
 Every family is queried through the same `=RTD()` worksheet function. There is no separate add-in, no VBA glue, no ActiveX object on the worksheet — only native RTD formulas.
