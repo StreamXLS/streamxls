@@ -119,7 +119,7 @@ Some fields carry specific behavior worth knowing before you rely on them:
 1. Indicator fields (recommended): request `IsDelayed` or `MarketDataType` for each contract and display that value nearby (or use that value to drive conditional formatting).
 2. In-cell annotation (opt-in): turn on **StreamXLS Control Panel → Settings → Delayed-data annotation** and every delayed-tier numeric value renders as text, e.g. `150.25 (delayed)`.
 
-> Trade-off — read before enabling **Delayed-data annotation**: the value becomes *text*, and Excel treats any text as greater than any number, so comparison formulas on an annotated cell are silently wrong (`=IF(A1>100,...)` is always TRUE; `MAX`/`AVERAGE`/`COUNTIF` skip the cell), while arithmetic fails loud with `#VALUE!`. To recover the number in a formula: `=VALUE(SUBSTITUTE(A1," (delayed)",""))`.
+> Trade-off — read before enabling **Delayed-data annotation**: the value becomes *text*, and Excel treats any text as greater than any number, so comparison formulas on an annotated value are silently wrong (`=IF(A1>100,...)` is always TRUE; `MAX`/`AVERAGE`/`COUNTIF` skip it), while arithmetic fails loud with `#VALUE!`. To recover the number in a formula: `=VALUE(SUBSTITUTE(A1," (delayed)",""))`.
 
 ## Account data
 
@@ -347,7 +347,7 @@ Notes on individual fields:
   - Across columns: `=TEXTSPLIT(RTD("Tws.Rtd",, "status", "AccountsCSV"), ",")`
   - Down rows: `=TEXTSPLIT(RTD("Tws.Rtd",, "status", "AccountsCSV"), , ",")`
 - `ServerVersion`, `MarketDataState`, and `MarketDataMessage` are per-connection diagnostics — each TWS connection negotiates its own protocol level, so if connecting to multiple TWS or IB Gateway instances from the same workbook, supply a [connection argument](manual.md#connection-parameters) (e.g. `paper`, `gw`, or `host=`/`port=`) to confirm which one you want the status for; with a single connection, omit it and the status piggybacks that connection — but only while StreamXLS has exactly one connection, after which such a cell reports `#AMBIGUOUS-CONNECTION` instead of diagnosing one connection out of several. `MarketDataState` is `Ok` when the negotiated protocol can stream market data (`ServerVersion` >= 206), `TooOld` when it cannot (1–205), `Unknown` before a version is negotiated.
-- `ConfigWarnings` and the four `UPDATE_*` fields re-resolve on every heartbeat, so a subscribed cell picks up a mid-session change without re-entering the formula. The update fields only read a local record and make no network calls.
+- `ConfigWarnings` and the four `UPDATE_*` fields re-resolve on every heartbeat, so a subscribed formula picks up a mid-session change without being re-entered. The update fields only read a local record and make no network calls.
 
 ### Data-state and freshness topics
 
@@ -371,10 +371,10 @@ The order and position subsystems each publish a state field and two timestamps,
 
 **The two update stamps are not symmetric, on purpose:**
 
-- `LastOrderUpdateUtc` is a **change** stamp. It advances whenever TWS reports order information that changes a value StreamXLS can put in a cell — a new order, a status or fill move, an order dropping out of the open-order snapshot, and any modification to an order field you can subscribe to (price, quantity, time in force, account, the order flags, and the rest). Read it as "order news arrived, re-read" rather than "this exact cell differs": nothing you could see in a cell is missed, and the stamp does occasionally move for news that ends up displaying the same way. StreamXLS re-polls open orders every 15 seconds by default, and a poll that re-delivers the same orders unchanged leaves this cell alone.
+- `LastOrderUpdateUtc` is a **change** stamp. It advances whenever TWS reports order information that changes a value StreamXLS can put in a cell — a new order, a status or fill move, an order dropping out of the open-order snapshot, and any modification to an order field you can subscribe to (price, quantity, time in force, account, the order flags, and the rest). Read it as "order news arrived, re-read" rather than "this exact value differs": nothing you could see in a cell is missed, and the stamp does occasionally move for news that ends up displaying the same way. StreamXLS re-polls open orders every 15 seconds by default, and a poll that re-delivers the same orders unchanged leaves this value unchanged.
 - `LastPositionUpdateUtc` is a **freshness** stamp. It advances on every position callback StreamXLS accepts, whether the numbers moved or not. TWS pushes positions rather than answering a poll: a position row arrives in the full listing StreamXLS requests at each connect (and when you add a position formula) and on each change to a holding, so on a quiet book this stamp stands still.
 
-Because `LastOrderUpdateUtc` is change-gated, it cannot tell a quiet market from a stopped feed — both look like a cell that is not moving. `LastOrderPollUtc` answers that question instead: it advances on every completed open-orders round trip, so while the order feed is healthy it keeps moving on the poll interval, and it freezes if TWS stops answering. A staleness alarm on the *feed* belongs on `LastOrderPollUtc`; an alarm on your *orders* belongs on `LastOrderUpdateUtc`.
+Because `LastOrderUpdateUtc` is change-gated, it cannot tell a quiet market from a stopped feed — both look like a value that is not moving. `LastOrderPollUtc` answers that question instead: it advances on every completed open-orders round trip, so while the order feed is healthy it keeps moving on the poll interval, and it freezes if TWS stops answering. A staleness alarm on the *feed* belongs on `LastOrderPollUtc`; an alarm on your *orders* belongs on `LastOrderUpdateUtc`.
 
 > `ServerHeartbeatUtc` is not a substitute. It measures StreamXLS running, not TWS answering, so it keeps ticking even when TWS is stuck.
 
@@ -444,7 +444,7 @@ These are the questions that come up while you are building your first sheet. Fo
   - `=RTD("Tws.Rtd",, "status", "IsConnected")` → `1` when connected, `0` otherwise
   - `=RTD("Tws.Rtd",, "status", "LastUpdateUtc")` → an Excel date-time value (UTC) marking the last successful update published by the server; empty until the first update arrives
   - `=RTD("Tws.Rtd",, "status", "ActiveTopicCount")` → how many distinct subscriptions the server holds (formulas that resolve to the same subscription count once); this reports what you have asked for, not whether data is arriving
-  - `=RTD("Tws.Rtd",, "status", "ConnectionError")` → why the connection is failing, when StreamXLS knows (the cells' sentence without `RTD error:`, or a reconnecting notice after a drop); empty when no failure is known — `IsConnected` says whether it is up
+  - `=RTD("Tws.Rtd",, "status", "ConnectionError")` → why the connection is failing, when StreamXLS knows (the cells' sentence without `RTD error:`, a client ID TWS refused, or a reconnecting notice after a drop); empty when no failure is known — `IsConnected` says whether it is up
 - Exactly what each cell family shows on disconnect, reconnect, or a license/trial lapse is documented in [Formula states and lifecycle](manual.md#formula-states-and-lifecycle).
 
 ### I want to open a saved workbook and see the last values, without connecting to TWS. How?
@@ -498,9 +498,9 @@ These are the questions that come up while you are building your first sheet. Fo
 =IF(AND(A1=1, (NOW()+B1/24-A2)*86400 > 30), "STALE", "OK")
 ```
 
-- `LastUpdateUtc` is UTC; `NOW()` is your local clock; `B1` holds the hours to add to local time to reach UTC. Omit it and the comparison is off by hours: west of UTC (all US time zones) the cell sits on `OK` no matter how stale the feed is; east of UTC it sticks on `STALE`.
+- `LastUpdateUtc` is UTC; `NOW()` is your local clock; `B1` holds the hours to add to local time to reach UTC. Omit it and the comparison is off by hours: west of UTC (all US time zones) the cell shows `OK` no matter how stale the feed is; east of UTC it shows `STALE`.
 - Pick the threshold to suit the instrument — 30 seconds is reasonable for an actively traded name during market hours, and far too tight for an illiquid one.
-- `NOW()` advances only when Excel recalculates — in a workbook whose other cells are still streaming that happens on its own, but in a quiet one press F9 before trusting an `OK`.
+- `NOW()` advances only when Excel recalculates — in a workbook whose other formulas are still streaming that happens on its own, but in a quiet one press F9 before trusting an `OK`.
 - This catches a feed that has stopped, not one that has fallen behind. `LastUpdateUtc` is the time StreamXLS last published a value, not the time TWS sent it, so it cannot show a backlog: updates that arrive late still advance it.
 
 ### How do I change how often Excel pulls updates?
@@ -511,7 +511,7 @@ Excel controls the pull interval, not StreamXLS: Excel calls the server's `Refre
 Application.RTD.ThrottleInterval = 5000  ' at most one pull every 5 seconds
 ```
 
-- Large workbooks — if Excel turns slow to respond while the workbook streams, raise it. Each pull also recalculates every formula that depends on the updated cells. When that takes as long as the interval or longer, Excel can start the next pull as soon as it finishes the last one, so it has little time left for anything else. A larger interval, such as `5000`, leaves Excel time between pulls; your cells then change at most every 5 seconds.
+- Large workbooks — if Excel turns slow to respond while the workbook streams, raise it. Each pull also recalculates every formula that depends on the updated cells. When that takes as long as the interval or longer, Excel can start the next pull as soon as it finishes the last one, so it has little time left for anything else. A larger interval, such as `5000`, leaves Excel time between pulls; your values then change at most every 5 seconds.
 - Small workbooks — a smaller value, such as `250`, shows changes sooner, at the cost of more of Excel's time.
 
 The setting limits how often Excel pulls; it does not force a pull. Whatever the setting, Excel pulls only when it has time.

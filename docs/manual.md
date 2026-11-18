@@ -159,7 +159,7 @@ choose one; otherwise StreamXLS picks a random client ID for each connection, in
   drawing the same number is a remote possibility rather than something to plan around. Pinning two
   instances to the *same* client ID will fail: TWS rejects the second connection with error
   326 (client ID already in use).
-- Spell a pinned connection the same way in every formula. Two spellings of one TWS — `host=localhost` in one formula and `host=127.0.0.1` in another, both with `clientid=37` (or with the **TWS client ID** setting) — open two connections asking for the same client ID; TWS refuses the second (error 326), and that connection's formulas return `#N/A`.
+- Spell a pinned connection the same way in every formula. Two spellings of one TWS that StreamXLS keys apart, both with `clientid=37` (or with the **TWS client ID** setting), open two connections asking for the same client ID; TWS refuses the second (error 326), that connection's formulas get no data, and its `ConnectionError` names the client ID. `localhost`, `::1` and `127.0.0.1` count as one spelling.
 - A pinned ID is not rotated for you — it reflects your stated intent. An auto ID may draw a
   fresh random value after a connection failure, including a single pre-handshake drop (TWS closing
   the socket before the handshake completes), which is a signature of TWS rate-limiting that ID.
@@ -650,7 +650,7 @@ instead of symbol plus expiry:
 
 **This names one dated contract; it does not roll.** StreamXLS subscribes to exactly the contract you
 name, and it has no front-month or continuous-contract mode. Once that contract stops trading, the
-cell stops updating — point the formula at the next month yourself, or build the local symbol from a
+value stops updating — point the formula at the next month yourself, or build the local symbol from a
 cell holding the current month code.
 
 ---
@@ -894,7 +894,7 @@ multiplier; the tell is the `Multiplier` cell, which fails loud on the mismatch 
 one. Name `exp=` or `conid=` whenever you mean one contract. The single-account form never rolls up: it fails loud instead, as
 **Pin the contract to exactly one position** below describes. While TWS is still listing the account's positions — at a connect,
 and when positions are requested again after every formula reading them was removed — a single-account cell other than a `conid=`
-one shows `#N/A`, or keeps the value it already shows, until the list is complete; a new cell's P&L fields can wait longer, for
+one shows `#N/A`, or keeps the value it already shows, until the list is complete; a new formula's P&L fields can wait longer, for
 TWS's first P&L update after the list. Contract-metadata fields fail loud in
 both forms — an aggregate `ConID` matching two contracts returns `Ambiguous position ...`, never one
 of the two.
@@ -1189,7 +1189,7 @@ you **Submit** it there; StreamXLS never sends an order directly to market. (`Se
   What stages one order per cell is a formula whose arguments *differ* per cell: a relative reference
   that changes as you fill down, a different `limit`, a unique `tag`. Fill a column of `StageOrder`
   formulas against a column of symbols and you stage a column of orders. Excel compares the argument text, not StreamXLS's reading of it: `side=BUY` and `action=BUY` are distinct topics even though they stage the same order.
-- **Arguments that stream re-stage.** By the same rule, a formula whose arguments reference a live cell — `"limit="&(A3-100)` with `A3` a streaming price — is a new topic at every change of that cell, so it stages a new ticket each time the price moves, and again after a reopen the moment the first live value arrives. Drive `StageOrder` arguments from values you set, not from cells that stream; see [Reopening a workbook does not re-stage](#reopening-a-workbook-does-not-re-stage).
+- **Arguments that stream re-stage.** By the same rule, a formula whose arguments reference a live cell — `"limit="&(A3-100)` with `A3` a streaming price — is a new topic at every change of that cell's value, so it stages a new ticket each time the price moves, and again after a reopen the moment the first live value arrives. Drive `StageOrder` arguments from values you set, not from values that stream; see [Reopening a workbook does not re-stage](#reopening-a-workbook-does-not-re-stage).
 
 Scope — `StageOrder` stages a single-leg order, one order per cell: the same contract keys used for
 market data above, with `STK`/`USD` defaults and every key validated fail-loud. `sec=` is where the
@@ -1206,7 +1206,7 @@ defaults, validation, and what cannot be staged — is in
 =RTD("Tws.Rtd",, "StageOrder", "sym=AAPL", "side=BUY", "shares=100", "type=LMT", "limit=150.05", "exch=SMART")
 ```
 
-`StageOrder` uses `key=value` arguments; argument order does not matter. As on every other topic, the
+`StageOrder` uses `key=value` arguments, written after `"StageOrder"` in any order. Only a connection argument may come before `"StageOrder"`; anything else there is rejected. As on every other topic, the
 keys can be written one per argument or semicolon-joined into a single argument — a lone
 `"sym=AAPL;side=BUY;shares=100;type=LMT;limit=150.05;exch=SMART"` stages the same order as the
 formula above — and contract and order keys may be mixed freely in one joined argument. The
@@ -1277,7 +1277,7 @@ Every key is **validated at parse time** — an out-of-range or malformed value 
 and nothing is staged. Unrecognized `key=value` arguments are rejected the same way. Supplying two synonyms
 of the same key (e.g. `stop=` and `aux=`) is also rejected rather than silently picking one.
 
-Always write `key=value`. An argument after `StageOrder` that contains no `=` — and is not a
+Always write `key=value`. An argument that contains no `=` — and is not a
 connection argument — is rejected loudly, naming the argument. Write `park` where you meant `park=true`
 and the formula returns an error telling you to write `park=value`; write a bare `BUY` and it
 returns the unknown-argument error.
@@ -1306,14 +1306,14 @@ a second subscription and StreamXLS stages the additional order.
   parked ticket (`park=true`) TWS sends no callback at staging time and the cell stays `Staged` until
   you act in TWS. How it presents in TWS is chosen per formula with the optional `park` key — see
   [Two staging shapes](#two-staging-shapes-default-vs-parktrue).
-- After you act on the order in TWS, the cell follows TWS's own status reports:
+- After you act on the order in TWS, the value follows TWS's own status reports:
   `ApiPending`/`PendingSubmit` (TWS has it; the destination has not acknowledged),
   `PreSubmitted`/`Submitted` (working), `PendingCancel` (a cancel awaiting confirmation), `Filled`,
   `Inactive` (held or rejected by TWS), or `Cancelled` (a discard of the staged order, a cancel of
   the working order, or removing the formula while the cell still showed `Sending`). The complete vocabulary,
   with active/terminal classification, is in
   [reference.md §7](reference.md#7-order-status-vocabulary).
-- `Error {code}: {message}` / `RTD error: StageOrder {message}`: TWS order error / validation/connection error. An error at staging usually means no ticket was created. On an advisor login, a missing allocation returns `Error 436` at staging; add `account=` or `fagroup=` to the formula, which stages it as a new order. If a ticket does exist in TWS (a `park=true` ticket fails a missing allocation only when you click **Transmit**), fixing and transmitting it in TWS updates the cell to the working status — a working status TWS reports replaces the error text.
+- `Error {code}: {message}` / `RTD error: StageOrder {message}`: TWS order error / validation/connection error. An error at staging usually means no ticket was created. On an advisor login, a missing allocation returns `Error 436` at staging; add `account=` or `fagroup=` to the formula, which stages it as a new order. If a ticket does exist in TWS (a `park=true` ticket fails a missing allocation only when you click **Transmit**), fixing and transmitting it in TWS changes the value to the working status — a working status TWS reports replaces the error text.
 
 Reopening a saved workbook does not re-stage a `StageOrder` formula — StreamXLS recognizes the
 reopen and disarms the cell instead of staging. See
@@ -1343,7 +1343,7 @@ silently staging one leg. The combo syntax above is for market-data topics, not 
 contract key is validated (bad strike, expiry, currency, or a derivative field on the wrong security
 type fails loud), never silently coerced. `FUT` requires `exp=` (or `loc=`), just as `OPT`/`FOP`
 require the expiry/strike/right triple. Three more fail-louds guard against half-written formulas: the
-same key twice (`side=BUY`,`side=SELL`), a key placed before the `StageOrder` argument, and a contract
+same key twice (`side=BUY`,`side=SELL`), anything other than a connection argument placed before the `StageOrder` argument, and a contract
 key with an empty value (`cur=` from a blank cell) are all rejected rather than silently reinterpreted.
 
 ---
@@ -1362,7 +1362,7 @@ key with an empty value (`cur=` from a blank cell) are all rejected rather than 
 **One status field per formula.** A status formula answers for the connection as a whole — it takes no
 account, no contract, and no other fields beyond optional connection specifiers.
 
-Status fields re-resolve on every heartbeat, so an already-subscribed cell tracks live changes
+Status fields re-resolve on every heartbeat, so an already-subscribed formula tracks live changes
 without re-entry. They scope per connection — supply a `paper`/`gw`/`host=`/`port=` argument, or omit it
 only when a single connection is in play (see [Which connection a status cell reads](#which-connection-a-status-cell-reads); the value re-resolves each heartbeat, the connection it reads does not). The complete set is in [reference.md §9](reference.md#9-status-and-metadata-fields).
 
@@ -1597,7 +1597,7 @@ Updates are offered, never forced. A licensed copy may keep running an old build
   update server — both return `#N/A`, and `UPDATE_MESSAGE` explains why and names the remedy that fits
   your computer: the Control Panel's **Check for updates** button where an automatic check is
   registered, and the download page where none is. A check older than two weeks is treated the same way: rather
-  than quote a stale answer back to you, StreamXLS says it does not know. Guard the cells with
+  than quote a stale answer back to you, StreamXLS says it does not know. Wrap the formulas in
   `IFERROR()` or `ISNA()` if you would rather hide the `#N/A`; what StreamXLS will not do is tell
   you that you are current when nothing has checked.
 - To install, the Control Panel downloads the signed installer, verifies its signature, and — after
@@ -1629,7 +1629,7 @@ is open, data formulas stop showing data and instead show a *text* license messa
 This affects all data formulas. Status and metadata formulas keep working — connection status, `LICENSE_STATE`,
 `LICENSE_MESSAGE`, and similar diagnostics still resolve, so you can always see *why* your data stopped.
 
-If the license has already lapsed when you open a workbook, data formulas show `#N/A` until Excel finishes opening the workbook, then the same license message. The first time StreamXLS starts in that Excel session, a small StreamXLS window also opens with the message, so you see it even before your cells change; click **Dismiss** to close it. These formulas recover the same way as formulas entered during a lapse (see [Recovering after the license re-verifies](#recovering-after-the-license-re-verifies)).
+If the license has already lapsed when you open a workbook, data formulas show `#N/A` until Excel finishes opening the workbook, then the same license message. The first time StreamXLS starts in that Excel session, a small StreamXLS window also opens with the message, so you see it even before your values change; click **Dismiss** to close it. These formulas recover the same way as formulas entered during a lapse (see [Recovering after the license re-verifies](#recovering-after-the-license-re-verifies)).
 
 **The message replaces every data value at once, including quiet ones.** When entitlement flips,
 StreamXLS sweeps every subscribed data formula through the license gate, so a quote in a closed
@@ -1641,7 +1641,7 @@ What is not instant is StreamXLS *noticing*. Entitlement is re-checked about eve
 your license is granting data, so a lapse can be up to that long in reaching the sheet; restart
 Excel to force a check immediately. (An unreachable license server is a different case — see below.)
 
-A license-server outage does not blank your dashboard. Once a machine has activated a license,
+A license-server outage does not blank your dashboard. Once a license is activated,
 StreamXLS holds a local license token and re-syncs it with the license server in the background. If
 the server cannot be reached, that token keeps data flowing for up to 30 days from the last
 successful sync; only past that do data formulas flip to a *could not verify — reconnect* message,
@@ -1671,7 +1671,7 @@ themselves only, so your account has not accepted yet. Your data formulas show:
 and `LICENSE_STATE` returns `AssentRequired`.
 
 Open **Start menu → StreamXLS → StreamXLS Control Panel**, read the agreement and click **I accept**.
-Your 30-day trial starts when you accept.
+If this computer's 30-day trial has not started yet, it starts when you accept; every Windows account on the computer shares one trial.
 If you decline, the Control Panel closes and StreamXLS keeps serving no data; open it again whenever you want to accept.
 
 If you installed StreamXLS yourself and accepted the agreement during installation, you will never
@@ -1794,8 +1794,8 @@ this list.
   StreamXLS reconnects on its own, and the formula fills with the rest of the sheet.
   **The two derived prices are the exception.** `MARKETPRICE` and `LASTORCLOSE` exist to always
   give you the most recent price available, outage or not, so they hold their value through a 1100
-  as they do through a socket disconnect. If you need a cell that goes loud the moment data stops
-  being current, read `LAST`, `BID`/`ASK`, or `CLOSE` instead — every one of those still does.
+  as they do through a socket disconnect. If you need a cell that goes `#N/A` whenever data stops
+  being current, read `BID` or `ASK`: they go `#N/A` on a 1100 and on a socket disconnect. `LAST` and `CLOSE` go `#N/A` on a 1100 only; on a socket disconnect `CLOSE` keeps its value, and so does `LAST` under the frozen tiers (the default).
 - **How the cells refill depends on which restore TWS sends**, and the difference matters most for
   `LAST`, `LASTORCLOSE`, and `MARKETPRICE`:
   - **Error 1102, "connectivity restored — data maintained".** TWS is telling us the data it held
@@ -1836,7 +1836,7 @@ instead of `#N/A`, as text beginning `RTD error:`, until the connection recovers
 when TWS is not running, its API is switched off, or the formula's port is not the one TWS listens on;
 `RTD error: Cannot find the computer named in host= (or TWS_RTD_HOST) — check the host name and your network connection.` when the host name
 does not resolve; or TWS's own text when TWS loses its link to IBKR (error 1100).
-Under the default **Error display** setting the reason is text, not an error value, so the [formula hazard](#the-formula-hazard-license-text-landing-in-numeric-cells) described for license text applies: `SUM`, `AVERAGE`, `MAX` and `MIN` skip such cells, and `ISNA`/`IFNA` do not see them — test with `ISNUMBER` where a total or a comparison matters. With **Error display** set to `NA`, these cells show `#N/A` instead, except four reasons that name a fix: an invalid `port=` or `clientid=`, a `_` in a connection argument, a host name that does not resolve, and TWS's paper-trading notice not yet accepted. Under every setting, including with **Preserve values on disconnect** on, the `ConnectionError` status field returns the reason without the `RTD error:` prefix — `=RTD("Tws.Rtd",, "status", "ConnectionError")`, with the same connection argument as the cells you are checking. While the connection is down after a drop or a failed attempt and no reason is known, it returns `Not connected to TWS — StreamXLS is reconnecting.` Empty means no failure is known, not that the connection is up; `IsConnected` says whether it is.
+Under the default **Error display** setting the reason is text, not an error value, so the [formula hazard](#the-formula-hazard-license-text-landing-in-numeric-cells) described for license text applies: `SUM`, `AVERAGE`, `MAX` and `MIN` skip such cells, and `ISNA`/`IFNA` do not see them — test with `ISNUMBER` where a total or a comparison matters. With **Error display** set to `NA`, these cells show `#N/A` instead, except four reasons that name a fix: an invalid `port=` or `clientid=`, a `_` in a connection argument, a host name that does not resolve, and TWS's paper-trading notice not yet accepted. Under every setting, including with **Preserve values on disconnect** on, the `ConnectionError` status field returns the reason without the `RTD error:` prefix — `=RTD("Tws.Rtd",, "status", "ConnectionError")`, with the same connection argument as the cells you are checking. It also names a client ID TWS refused because another API client holds it, a reason the cells themselves do not show: `Client ID 37 is already in use on this TWS, so TWS refused this connection. …` While the connection is down after a drop or a failed attempt and no reason is known, it returns `Not connected to TWS — StreamXLS is reconnecting.` Empty means no failure is known, not that the connection is up; `IsConnected` says whether it is.
 During an error 1100 the socket to TWS can stay up, so `IsConnected` can return 1 beside cells saying the
 connectivity is lost: both are true — StreamXLS's link to TWS is up, TWS's link to IBKR is down.
 
@@ -2071,17 +2071,13 @@ once per Excel session, so an API installed while Excel is open is not seen unti
 `=RTD("Tws.Rtd",, "TWSAPI_STATE")` returns `NotFound` here and `Ok` once the API resolves — the
 quickest confirmation that a fix took.
 
-### The Control Panel shows "TWS API not detected" or an older TWS API
-
-On StreamXLS 1.1.6 or earlier, after you install TWS API 1050.02 or later, the Control Panel shows "TWS API not detected", or names an older TWS API than the one you installed. Those StreamXLS versions do not look in the folder IBKR's installer now uses for each release, such as `C:\TWS API 1050.02`. Install StreamXLS 1.1.7 from the [download page](https://streamxls.com/download), or type that folder (the release's own folder, not one inside it) in **StreamXLS Control Panel → Settings → TWS API location** and click **Save**; then reopen the Control Panel and restart Excel.
-
 ### A cell shows #N/A
 
 | Likely cause | What to do |
 |---|---|
 | TWS is not connected | Check `=RTD("Tws.Rtd",, "status", "IsConnected")` — it should return `1` |
 | No market-data subscription for the security | Check your entitlements in IBKR Account Management |
-| No real-time subscription, and TWS fell back to delayed data | Nothing — the cell is waiting for its first delayed tick, which outside market hours can be a long wait. No message appears for the fallback itself; check `=RTD("Tws.Rtd",, "{contract}", "IsDelayed")` or `"MarketDataType"` for the tier TWS is serving. |
+| No real-time subscription, and TWS fell back to delayed data | Nothing — the formula is waiting for its first delayed tick, which outside market hours can be a long wait. No message appears for the fallback itself; check `=RTD("Tws.Rtd",, "{contract}", "IsDelayed")` or `"MarketDataType"` for the tier TWS is serving. |
 | The contract specification is wrong | Verify every parameter against the contract in TWS |
 | The market is closed and that tick type is not being published | Use `MarketPrice` instead of `LAST` as an after-hours fallback |
 | A cell that *was* showing a number went `#N/A` | TWS withdrew the value — it answered "no value for this field right now", most often at a session reset (yesterday's high or open is no longer the answer, today's does not exist yet) or at the close, where the bid, ask and last withdraw as a price/size pair. StreamXLS shows that answer rather than keeping the old number, and repaints as soon as a real value arrives. `MarketPrice` / `LastOrClose` follow their inputs: a withdrawn input takes them with it when it is the one that produced the number they were showing, and where another input (a trade, a quote, the previous close) can still answer, the cell refills from that in the same update. |
@@ -2121,7 +2117,7 @@ Solutions:
 
 ### Quotes stopped, but the connection is healthy
 
-Quote cells that were updating go dead on one or more contracts while everything else keeps working:
+Quotes that were updating go dead on one or more contracts while everything else keeps working:
 `IsConnected` returns `1`, orders, positions and account values still update, and the affected cells show
 
 - `RTD error: No market data during competing live session`
@@ -2149,7 +2145,7 @@ Confirming it without reading a log: put the two connection timestamps on the sh
 ```
 
 If the heartbeat keeps advancing while `LastUpdateUtc` stands still, the connection is alive and market
-data specifically is not arriving. **That test is only valid when every cell on that connection is
+data specifically is not arriving. **That test is only valid when every formula on that connection asks for
 market data.** `LastUpdateUtc` is stamped by every publish that carries data — account, order and
 position updates included — and it answers for one connection, so on a connection that also serves
 accounts or orders it keeps advancing right through a market-data outage. On a mixed sheet, read the
@@ -2247,7 +2243,7 @@ For an `#N/A` that should be a holding:
 
 ### Memory and 32-bit Excel
 
-StreamXLS runs inside Excel and shares its memory. 64-bit Excel has no practical limit of its own. 32-bit Excel can use at most 2 GB (4 GB on 64-bit Windows), shared by your workbook, Excel's own recalculation and StreamXLS, so a large workbook can run it short. When memory runs out, StreamXLS keeps running where it can: it drops the work it could not finish, counts each failure its outermost safeguards caught (some failures are handled without being counted, so the count is a minimum), and reports the count in the `ConfigWarnings` status field (`StreamXLS ran out of memory …`). Some cells may then show `#N/A` or stop updating until the connection comes back, and Excel itself may close. What to do: save your work and restart Excel. If the notice comes back, use 64-bit Excel (if yours is 32-bit) or split the workbook.
+StreamXLS runs inside Excel and shares its memory. 64-bit Excel has no practical limit of its own. 32-bit Excel can use at most 2 GB (4 GB on 64-bit Windows), shared by your workbook, Excel's own recalculation and StreamXLS, so a large workbook can run it short. When memory runs out, StreamXLS keeps running where it can: it drops the work it could not finish, counts each failure its outermost safeguards caught (some failures are handled without being counted, so the count is a minimum), and reports the count in the `ConfigWarnings` status field (`StreamXLS ran out of memory …`). Some cells may then show `#N/A`, or their values stop updating until the connection comes back, and Excel itself may close. What to do: save your work and restart Excel. If the notice comes back, use 64-bit Excel (if yours is 32-bit) or split the workbook.
 
 For support: turn the file log on (see [The settings](#the-settings)), reproduce the problem and send the log; the relevant lines contain `out of memory` or `OutOfMemory` (any case). If Excel closed, also look in the Windows Application event log for a `.NET Runtime` event 1026 or an `Application Error` entry for `EXCEL.EXE` at that time, and send that too.
 
@@ -2269,14 +2265,13 @@ Cases where StreamXLS does not behave as the rest of this manual describes, and 
 - A value from the moment of a disconnect can stay on screen. If StreamXLS is still handling a message from TWS more than two seconds after the connection drops — which can happen while Excel is busy, for example opening a large workbook, or while the computer is heavily loaded — a formula can return that message's value as if current instead of `#N/A` until that value next updates, even after the connection has come back: a position's size, average cost or unrealized P&L, an order's status or fill figures, an open-order list (`OpenListCsv`), or, rarely, a market-data value; a positions-list formula can return an empty list. Separately, if you delete a position's P&L formula in the same instant as a disconnect, the open-position count can show a wrong number instead of `#N/A` until it next updates. **What to do:** if Excel was busy or the computer slow when the connection dropped, check a figure against TWS before you act on it, until it has updated since the connection came back.
 - A P&L formula added right after removing the last one can return an old figure. If you remove the last formula that uses a position's P&L figure, or a total across positions, and add one again moments later, the new formula can return the figure from before the removal until TWS sends a new one, and if TWS never answers the new request, until the next reconnect. For an account's P&L, the same can happen only if you add the formula back within a fraction of a second of removing it. **What to do:** if a re-added P&L formula has not changed for a while, re-enter it.
 - An account whose three P&L figures are all exactly 0 — typically an account with no positions and no trades today — shows `#N/A` for a few seconds each time StreamXLS asks TWS for its P&L. `DailyPNL`, `UnrealizedPNL` and `RealizedPNL` return `#N/A` for those seconds when the formula is entered, at a connect and at a reconnect (a formula already showing a figure, including one kept by **Preserve values on disconnect**, keeps it for those seconds instead), and so does a formula built on them, such as a `SUM` across accounts; see [Account topics](#account-topics). **What to do:** give such a total a few seconds after a connect before you treat its `#N/A` as a fault.
-- Positions do not fill on an advisor or introducing-broker master login with more than 50 sub-accounts. IBKR does not offer the positions request StreamXLS uses on such a login, so StreamXLS does not send it: position, positions-list and `OpenPositionCount` formulas stay `#N/A` (one exception: if the login passes 50 during a session, a formula typed on a position StreamXLS already had can bring back that position's size from before, which may no longer be current), and `PositionDataState` shows `Idle`. Other formulas are unaffected. **What to do:** contact <support@streamxls.com> and request support for more than 50 sub-accounts.
+- Positions do not fill on an advisor or introducing-broker master login with more than 50 sub-accounts. IBKR does not offer the positions request StreamXLS uses on such a login, so StreamXLS does not send it: position, positions-list and `OpenPositionCount` formulas stay `#N/A`, and `PositionDataState` shows `Idle`. Other formulas are unaffected. **What to do:** contact <support@streamxls.com> and request support for more than 50 sub-accounts.
 - A position total across accounts adds figures without converting currencies. In a position formula with a blank, `*`, `All` or a comma list of accounts, `MarketValue`, `DailyPNL`, `UnrealizedPNL` and `RealizedPNL` are added as TWS reports each holding's figure, with no conversion between currencies, and `AverageCost` is blended by size the same way; sizes are unaffected. **What to do:** on a login whose holdings settle in more than one currency, total one account at a time.
 - `HIGH` or `LOW` can miss a new high or low set during a brief break in TWS's connection to IBKR. When TWS reports the connection restored with its data maintained (error 1102) without first reporting it lost (error 1100), StreamXLS asks TWS for every market-data value again and keeps showing `HIGH` and `LOW` meanwhile; if TWS's answer leaves one of them out, that formula keeps returning the value from before the break until the next new session high or low. A break TWS reports as lost (error 1100) and then restored (1102) is a different case: the cells clear at the loss and refill from what TWS resends; see [What happens on reconnect](#what-happens-on-reconnect). **What to do:** when TWS's own window reports its connection to IBKR restored, check `HIGH` and `LOW` against TWS before you act on them.
 - A `StageOrder` formula can miss TWS's reason for a cancel or rejection while another session's order has the same order ID. While the other session's order stays listed, StreamXLS keeps every error TWS reports on that ID except the duplicate-order-ID error (103) out of the formula, so the formula can show `Cancelled`, or `Inactive` for a rejection, without the reason. **What to do:** read the reason in TWS's own order window.
-- An update replaces the installed demo workbook. Each update overwrites the installed `StreamXLS.xlsm`, whether or not you changed it, so anything you saved in that file is lost. **What to do:** save your own work in a copy of the demo workbook.
-- TWS API client ID collisions can silently break P&L data streams on an existing connection. If any API client attempts a second connection to TWS with a client ID already in use, TWS refuses it with error 326. But the existing connection's account and position P&L fields (`DailyPNL`, `RealizedPNL`, `UnrealizedPNL`, and a position's `MarketValue`) can stop updating and keep returning their last value. In this condition the connection's `IsConnected` stays 1, its `ConnectionError` stays empty and, as other data arrives, its `LastUpdateUtc` keeps advancing. **What to do:** restart the Excel instance with the client ID that collided. Avoid this problem by using automatic client IDs (the default for StreamXLS), or by ensuring that all API clients use unique client IDs.
+- TWS API client ID collisions can silently break P&L data streams on an existing connection. If any API client attempts a second connection to TWS with a client ID already in use, TWS refuses it with error 326, and the refused connection's `IsConnected` returns 0; when it is StreamXLS, its `ConnectionError` names the client ID in use. But the existing connection's account and position P&L fields (`DailyPNL`, `RealizedPNL`, `UnrealizedPNL`, and a position's `MarketValue`) can stop updating and keep returning their last value. In this condition the existing connection's `IsConnected` stays 1, its `ConnectionError` stays empty and, as other data arrives, its `LastUpdateUtc` keeps advancing. **What to do:** first stop the second connection from asking for that client ID: clear the **TWS client ID** setting and any `clientid=` you do not need (see [Client ID](#client-id)), or give each Excel instance its own `clientid=` in its formulas and every other API client its own ID, and spell the TWS host the same way in every formula (`localhost`, `::1` and `127.0.0.1` count as one spelling). Then close every Excel instance that used that client ID, and only then start them again; restarting just one can move the problem to another. Avoid this problem by using automatic client IDs (the default for StreamXLS), or by ensuring that all API clients use unique client IDs.
 - After a lost connection comes back, `CLOSE` can show the earlier session's close. TWS moves `CLOSE` to the new session some time after the market closes (for U.S. stocks, at about 8:05 PM ET). When the connection to TWS returns after that and TWS does not send `CLOSE` again, `CLOSE`, `LASTORCLOSE` and `MARKETPRICE` keep showing the earlier close until TWS sends a new value. **What to do:** after an outage that lasts past that time, restart Excel before relying on those values.
-- An argument written before `"StageOrder"` can be ignored without an error. A mistyped connection argument there (for example `"papr"` for `"paper"`) is ignored, so the order is staged on your default connection (live TWS, port 7496, unless you changed the **TWS port** setting); an order key written there as a bare word (for example `"hidden"`) is ignored too, so the order is staged without it. Either way the formula stages the order and shows no error. **What to do:** write `"StageOrder"` first, as every example in this manual does, put any connection argument after it, and check the staged order in TWS before you submit it.
+- In a Windows region whose decimal symbol is a comma and whose thousands separator is not a period (French, Russian, Polish, Czech, Swedish, Norwegian, Finnish and Ukrainian, among others), every option-chain formula (`OPTIONEXPIRATIONSCSV`, `OPTIONSTRIKESCSV`) shows an error that begins `RTD error: Could not resolve contract`, market-data formulas show their first values a minute or more after StreamXLS connects to TWS, and values TWS sends only once (`CLOSE`, average volume, the 13-, 26- and 52-week highs and lows, among others) can stay `#N/A`. IBKR's API client cannot read, in that number format, the price increment TWS sends for a contract. **What to do:** set the Windows decimal symbol to a period (Control Panel → Region → Additional settings → **Decimal symbol**) and restart Excel. A test that simulates that setting showed none of these effects; the setting itself is untested, and it changes how Excel and other programs show numbers.
 
 ---
 
@@ -2304,7 +2299,7 @@ is the complete public list and the rules that decide which value wins.
 
 Whichever route you use, `=RTD("Tws.Rtd",, "status", "ConfigWarnings")` reports any `TWS_RTD_*`
 value the engine could not take at face value — one it clamped into range, or a selector it fell
-back to the default on — and is empty when your configuration is clean (the same cell also carries the connection-limit and the out-of-memory notices, described with the other status fields). The file log is off until
+back to the default on — and is empty when your configuration is clean (the same field also carries the connection-limit and the out-of-memory notices, described with the other status fields). The file log is off until
 you turn it on, so this field is where a mistyped setting becomes visible, never a silent default.
 
 ### The settings
@@ -2329,7 +2324,7 @@ Basic settings — always visible in the Settings dialog:
 Advanced settings — behind **Show advanced settings**. Most people never touch these; the defaults
 are the tested values. Leave any you do not recognize at its default.
 
-![The Settings dialog with Show advanced settings ticked, revealing the advanced group](img/control-panel-settings-advanced.png)
+![The Settings dialog with Show advanced settings selected, revealing the advanced group](img/control-panel-settings-advanced.png)
 
 | Variable | Control Panel setting | Default | Purpose |
 |---|---|---|---|
@@ -2418,7 +2413,7 @@ blocked until you right-click the file → **Properties → Unblock**. Its macro
 StreamXLS LLC, but Excel still shows a one-time **SECURITY WARNING** bar the first time you open it —
 a signature earns the *option* to trust the publisher, not silence. Choose **Enable Content**, or
 **File → Info → Enable Content → Advanced Options… → Trust all documents from this publisher** to stop
-the prompt for good. A copy also ships in this repository: [StreamXLS.xlsm](../examples/StreamXLS.xlsm).
+the prompt for good. A copy also ships in this repository: [StreamXLS.xlsm](../examples/StreamXLS.xlsm). An update installs the new edition in its place; if you changed it, Setup first keeps your version beside it, named like `StreamXLS-20261116-0930-yours.xlsm`, and uninstalling keeps it too.
 
 Every timestamp on its sheets shows UTC, the value StreamXLS returns — `LastUpdateUtc`, `ServerHeartbeatUtc`, an order's `FirstSeenUtc` and `LastUpdateUtc`; the workbook does no time-zone conversion. To see local time, add your offset from UTC in a cell of your own, as hours divided by 24: `=A1 + {offset}/24`, with the timestamp in `A1` — `=A1 - 4/24` for New York in summer, `=A1 - 5/24` in winter. A fixed offset stays right only until your clocks next change.
 
@@ -2521,7 +2516,7 @@ any configuration change.
 
 The four `UPDATE_*` fields work two ways. As a bare name they are one-shot metadata, resolved when
 the cell subscribes. Behind the `status` argument they are live fields, re-read each heartbeat — so a
-critical flag that flips mid-session reaches a cell that is already open, with no re-subscribe. Both
+critical flag that flips mid-session reaches a formula that is already entered, with no re-subscribe. Both
 forms read the same local record, with no network call, and return the same values.
 
 ### Version and license
